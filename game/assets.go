@@ -1,1 +1,85 @@
-package game
+package main
+
+import (
+    "fmt"
+    "image"
+    "image/color"
+    "os"
+    "log"
+    _ "image/png"
+    "github.com/hajimehoshi/ebiten/v2"
+    "github.com/hajimehoshi/ebiten/v2/ebitenutil"
+)
+
+
+const (
+    TileEmpty  = 0
+    TileWall   = 1
+    TilePellet = 2
+    TilePlayer = 3
+)
+
+var level = [][]int{
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 3, 2, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1},
+    {1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 1, 2, 1},
+    {1, 2, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 1, 2, 1},
+    {1, 2, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 2, 2, 1},
+    {1, 2, 2, 2, 1, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1},
+    {1, 1, 1, 2, 1, 2, 2, 1, 2, 1, 2, 2, 1, 2, 1},
+    {1, 2, 2, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1},
+    {1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 1},
+    {1, 1, 1, 2, 1, 2, 1, 3, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 2, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+}
+
+var (
+    WallImage    *ebiten.Image
+    PelletImage  *ebiten.Image
+    FloorImage   *ebiten.Image
+    PlayerImage  *ebiten.Image
+)
+
+func LoadAssets() {
+    var err error
+    fmt.Println("Loading wall image from assets/wall.png")
+
+    WallImage, _, err = ebitenutil.NewImageFromFile("assets/wall.png")
+    if err != nil {
+        log.Fatal("failed to load wall.png",err)
+    }
+    FloorImage, _, err = ebitenutil.NewImageFromFile("assets/floor.png")
+    if err != nil {
+        log.Fatal("failed to load floor.png",err)
+    }
+    // PelletImage, _, err = ebitenutil.NewImageFromFile("assets/pellet.png")
+    // if err != nil {
+    //     log.Fatal("failed to load pellet",err)
+    // }
+    PlayerImage, _, err = ebitenutil.NewImageFromFile("assets/player.png")
+    if err != nil {
+        log.Fatal("failed to load player",err)
+    }
+
+    PelletImage = ebiten.NewImage(8,8)
+    PelletImage.Fill(color.White)
+}
+
+func loadImage(path string) *ebiten.Image{
+    f, err := os.Open(path)
+    if err !=nil{
+        log.Fatal(err)
+    }
+    defer f.Close()
+
+    img, _, err := image.Decode(f)
+    if err !=nil{
+        log.Fatal(err)
+    }
+
+    return ebiten.NewImageFromImage(img)
+}
