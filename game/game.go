@@ -9,21 +9,32 @@ import (
 
 type Game struct{
     Player *Player
+    Ghosts []*Ghost
 }
+
+const TileSize =32
 
 func NewGame() *Game {
     return &Game{
         Player: NewPlayer(float64(1*TileSize), float64(1*TileSize),"assets/player.png"),
+        Ghosts: []*Ghost{
+		NewGhost(64, 64, "assets/sakuna.png", "Sukuna",50),
+		NewGhost(160, 96, "assets/jogo.png", "Jogo",50),
+		NewGhost(96, 160, "assets/kenjaku.png", "Kenjaku",50),
+		NewGhost(160, 160, "assets/mahito.png", "Mahito",50),
+	},
     }
 }
 
 
 func (g *Game) Update()error{
     g.Player.Update(level, TileSize)
+    for _, ghost := range g.Ghosts{
+        ghost.Update(level, TileSize)
+    }
     return nil
 }
 
-const TileSize =32
 
 func DrawMaze(screen *ebiten.Image) {
     for y, row := range level {
@@ -69,6 +80,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
             }
         }
     }
+    for _, ghost := range g.Ghosts {
+    ghost.Draw(screen)
+}
 
     g.Player.Draw(screen) // draw player AFTER level so it appears on top
 }
@@ -79,7 +93,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int)(int , int){
     height := len(level)*TileSize
     return width,height  
 }
-func isWallColliding(level [][]int, px, py float64, size, tileSize int) bool {
+func isWallColliding(level [][]int, px, py float64, size, TileSize int) bool {
 	corners := [][2]int{
 		{int(px), int(py)},
 		{int(px + float64(size) - 1), int(py)},
@@ -88,8 +102,8 @@ func isWallColliding(level [][]int, px, py float64, size, tileSize int) bool {
 	}
 
 	for _, corner := range corners {
-		cx := corner[0] / tileSize
-		cy := corner[1] / tileSize
+		cx := corner[0] / TileSize
+		cy := corner[1] / TileSize
 		fmt.Printf("Checking tile (%d, %d) = %d\n", cx, cy, level[cy][cx])
 		
 
