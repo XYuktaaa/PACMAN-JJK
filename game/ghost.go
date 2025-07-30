@@ -3,6 +3,8 @@ package main
 import(
  "github.com/hajimehoshi/ebiten/v2"
     "github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    "math"
+    "fmt"
 )
 type Ghost struct{
     X,Y       float64
@@ -14,7 +16,11 @@ type Ghost struct{
     Name      string
     visible   bool
     Size      int
+    TargetX   int
+    TargetY   int
+
 }
+
 
 func NewGhost(x,y float64, spritePath string,name string,Size int) *Ghost{
     img, _, err := ebitenutil.NewImageFromFile(spritePath)
@@ -34,14 +40,70 @@ func NewGhost(x,y float64, spritePath string,name string,Size int) *Ghost{
         Height:    h,
         Direction: "left",
         Size:      55,
+        
     }
 }
 
-func(g *Ghost) Update (level[][]int, TileSize int){
-    nextX, nextY := g.X, g.Y
+func (g *Ghost) updateTarget(playerX, playerY, blinkyX, blinkyY float64, TileSize int) {
+    switch g.Name {
+    case "jogo": // 🔴 Blinky
+        g.TargetX = int(playerX)
+        g.TargetY = int(playerY)
 
-    switch g.Direction{
+    case "kenjaku": // 🟣 Pinky
+        // Predictive movement: 4 tiles ahead of player
+        offset := 4 * TileSize
+        switch g.Direction {
+        case "up":
+            g.TargetX = int(playerX)
+            g.TargetY = int(playerY - float64(offset))
+        case "down":
+            g.TargetX = int(playerX)
+            g.TargetY = int(playerY + float64(offset))
         case "left":
+            g.TargetX = int(playerX - float64(offset))
+            g.TargetY = int(playerY)
+        case "right":
+            g.TargetX = int(playerX + float64(offset))
+            g.TargetY = int(playerY)
+        }
+
+    case "mahito": // 🟠 Clyde
+        // If far, chase; else retreat
+        dist := distance(g.X, g.Y, playerX, playerY)
+        if dist > 8*float64(TileSize) {
+            g.TargetX = int(playerX)
+            g.TargetY = int(playerY)
+        } else {
+            g.TargetX = 0
+            g.TargetY = len(level)*TileSize - 1 // bottom-left corner
+        }
+
+    case "sakuna": // 🔵 Inky
+        // Vector from Blinky through Player (P + (P - B))
+        dx := playerX - blinkyX
+        dy := playerY - blinkyY
+        g.TargetX = int(playerX + dx)
+        g.TargetY = int(playerY + dy)
+
+    default:
+        g.TargetX = int(playerX)
+        g.TargetY = int(playerY)
+    }
+}
+
+func (g *Ghost) Update(level [][]int, TileSize int, playerX, playerY float64, blinkyX, blinkyY float64) {
+    g.updateTarget(playerX, playerY, blinkyX, blinkyY, TileSize)
+
+    // Only recalculate direction at tile centers
+    if int(g.X)%TileSize == 0 && int(g.Y)%TileSize == 0 {
+        g.moveTowardTarget(level, TileSize)
+    }
+
+    // Try moving in current direction
+    nextX, nextY := g.X, g.Y
+    switch g.Direction {
+    case "left":
         nextX -= g.Speed
     case "right":
         nextX += g.Speed
@@ -50,23 +112,24 @@ func(g *Ghost) Update (level[][]int, TileSize int){
     case "down":
         nextY += g.Speed
     }
-   if !isWallColliding(level, nextX, nextY, g.Size, TileSize) {
+
+    // Only move if no wall
+    if !isWallCollidingLenient(level, nextX, nextY, g.Size, TileSize) {
         g.X = nextX
         g.Y = nextY
-    } else {
-        // reverse direction on wall hit
-        switch g.Direction {
-        case "left":
-            g.Direction = "right"
-        case "right":
-            g.Direction = "left"
-        case "up":
-            g.Direction = "down"
-        case "down":
-            g.Direction = "up"
-        }
     }
+    mapWidth := len(level[0]) * TileSize
+	mapHeight := len(level) * TileSize
+
+	if g.X < 0 { g.X = 0 }
+	if g.Y < 0 { g.Y = 0 }
+	if g.X > float64(mapWidth - g.Size) { g.X = float64(mapWidth - g.Size) }
+	if g.Y > float64(mapHeight - g.Size) { g.Y = float64(mapHeight - g.Size) }
+
+
+    fmt.Printf("Ghost pos: %.2f, %.2f | direction: %s\n", g.X, g.Y, g.Direction)
 }
+
 func (g *Ghost) Draw(screen *ebiten.Image) {
     op := &ebiten.DrawImageOptions{}
     w, h := g.Image.Size()
@@ -80,3 +143,81 @@ func (g *Ghost) Draw(screen *ebiten.Image) {
     screen.DrawImage(g.Image, op)
 }
 
+func (g *Ghost) moveTowardTarget(level [][]int, TileSize int){
+    type Direction struct{
+        Name    string
+        offsetX float64
+        offsetY float64
+    }
+    
+    directions := []Direction{
+        {"left",-g.Speed,0},
+        {"right",g.Speed,0},
+        {"up",0,-g.Speed},
+        {"down",0,g.Speed},
+    }
+    //prevent reversing unless stuck
+    opposite := map[string]string{
+        "left": "right",
+        "right":"left",
+        "up":   "down",
+        "down": "up",
+
+    }
+   
+    bestDir := g.Direction
+    shortestDist := math.MaxFloat64
+    moved := false
+
+    for _, dir := range directions{
+        // Skip the reverse direction unless stuck
+		if dir.Name == opposite[g.Direction] {
+			continue
+		}
+        nx := g.X + dir.offsetX
+        ny := g.Y + dir.offsetY
+        fmt.Printf("%s trying %s → (%.2f, %.2f)\n", g.Name, dir.Name, nx, ny)
+
+
+        if isWallCollidingLenient(level, nx, ny, g.Size, TileSize) {
+			continue // Skip this direction if it hits a wall
+		
+
+        	dist := distance(nx, ny, float64(g.TargetX), float64(g.TargetY))
+			if dist < shortestDist {
+				shortestDist = dist
+				bestDir = dir.Name
+			}
+			moved =true 
+			fmt.Printf("%s chose direction: %s\n", g.Name, g.Direction)
+			fmt.Printf("Trying %s → (%.2f, %.2f), dist: %.2f\n", dir.Name, nx, ny, dist)
+		}
+    }
+    if !moved {
+		// If stuck, allow reversing
+		for _, dir := range directions {
+			nx := g.X + dir.offsetX
+			ny := g.Y + dir.offsetY
+			if !isWallColliding(level, nx, ny, g.Size, TileSize) {
+				bestDir = dir.Name
+				break
+			}
+		}
+	}
+	g.Direction = bestDir
+	// Move in chosen direction
+	switch g.Direction {
+	case "left":
+		g.X -= g.Speed
+	case "right":
+		g.X += g.Speed
+	case "up":
+		g.Y -= g.Speed
+	case "down":
+		g.Y += g.Speed
+	}
+}
+
+func distance(x1, y1, x2, y2 float64)float64{
+    return math.Hypot(x2-x1, y2-y1)
+}

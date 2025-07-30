@@ -20,6 +20,8 @@ type Player struct {
     Image *ebiten.Image
     Width int
     Height int
+    Score  int
+    Size   int
 }
 
 func NewPlayer(x, y float64, spritePath string) *Player {
@@ -38,13 +40,17 @@ func NewPlayer(x, y float64, spritePath string) *Player {
         Direction: "right",
         Width:     w,
         Height:    h,
+        Size:      w,
     }
+    
 }
 
 func (p *Player) Draw(screen *ebiten.Image){
     op := &ebiten.DrawImageOptions{}
     op.GeoM.Translate(p.X, p.Y)
     screen.DrawImage(p.Image, op)
+        
+
 
 }
 
@@ -69,11 +75,20 @@ func (p *Player) Update(level [][]int, TileSize int) {
     }
 
     //  collision check
-    if !isWallColliding(level, nextX, p.Y, p.Width, TileSize) {
+    if !isWallCollidingStrict(level, nextX, p.Y, p.Width, TileSize) {
         p.X = nextX
     }
-    if !isWallColliding(level, p.X, nextY, p.Height, TileSize) {
+    if !isWallCollidingStrict(level, p.X, nextY, p.Height, TileSize) {
         p.Y = nextY
+    }
+
+    gridX := int(p.X + float64(TileSize)/2)/TileSize
+    gridY := int(p.Y + float64(TileSize)/2)/TileSize
+
+    if level[gridY][gridX]== TilePellet{
+        level[gridY][gridX] = TileEmpty
+        p.Score++
+        fmt.Println("Pellet eaten! Score:", p.Score)
     }
 
     fmt.Println("Player pos:", p.X, p.Y)
