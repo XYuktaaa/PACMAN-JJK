@@ -5,6 +5,7 @@ import (
     "github.com/hajimehoshi/ebiten/v2/ebitenutil"
     "fmt"
     "image/color"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
     
 )
 
@@ -16,6 +17,8 @@ type Game struct{
     Player *Player
     Ghosts []*Ghost
     Pellet []Pellet
+    menuUI *UIPage
+    showMenu bool
 }
 
 const TileSize =32
@@ -29,23 +32,52 @@ func NewGame() *Game {
 	    NewGhost(160, 96, "assets/jogo.png", "jogo",50),
 		NewGhost(96, 160, "assets/kenjaku.png", "Kenjaku",50),
 		NewGhost(160, 160, "assets/mahito.png", "Mahito",50),
-	},
+			},
+
+		menuUI: NewUIPage(),
+        showMenu: true,
     }
 }
 
 
 func (g *Game) Update()error{
-    g.Player.Update(level, TileSize)
-    var jogo *Ghost
-    for _, ghost:= range g.Ghosts{
-        if ghost.Name == "jogo"{
-            jogo = ghost
-            break
+    if g.Player != nil{
+    g.Player.Update(level, TileSize)}
+    if g.showMenu {
+        err := g.menuUI.Update()
+        if err != nil {
+            return err
         }
+        if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+    g.showMenu = !g.showMenu // Toggle menu
+}
+        // Check if user selected an option
+        if g.menuUI.IsEnterPressed() {
+            switch g.menuUI.GetSelectedOption() {
+            case 0: // START
+                g.showMenu = false
+                // Start your game logic
+            case 1: // PAUSE
+                // Pause game logic
+            case 2: // RESUME
+                g.showMenu = false
+                // Resume game logic
+            case 3: // QUIT
+                return fmt.Errorf("quit game")
+            }
+        }
+        return nil
     }
-    for _, ghost := range g.Ghosts{
-        ghost.Update(level, TileSize, g.Player.X, g.Player.Y, jogo.X, jogo.Y)
-    }
+        // var jogo *Ghost
+    // for _, ghost:= range g.Ghosts{
+    //     if ghost.Name == "jogo"{
+    //         jogo = ghost
+    //         break
+    //     }
+    // }
+    // for _, ghost := range g.Ghosts{
+    //     ghost.Update(level, TileSize, g.Player.X, g.Player.Y)
+    // }
     return nil
 }
 
@@ -70,6 +102,10 @@ func DrawMaze(screen *ebiten.Image) {
 
 
 func (g *Game) Draw(screen *ebiten.Image) {
+     if g.showMenu {
+        g.menuUI.Draw(screen)
+        return
+    }
     DrawMaze(screen) // draw background or maze first
 	// DrawPellets(screen)
 
