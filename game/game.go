@@ -56,7 +56,9 @@ func NewGame() *Game {
     	NewGhost(13*TileSize, 14*TileSize, "assets/mahito.png", "mahito", 55),
         },
 
+
     }
+	g.resetGhosts()
 
     InitPellets(level, TileSize)
 	g.countPellets()
@@ -65,16 +67,42 @@ return g
 
 
 func (g *Game) Update()error{
-    switch g.State {
-    case StateMenu:
-        return g.updateMenu()
-    case StatePlaying:
-        return g.updateGame()
-    case StateGameOver:
-        return g.updateGameOver()
-    case StatePaused:
-        return g.updatePaused()
+    if g.showMenu {
+        err := g.menuUI.Update()
+        if err != nil {
+            return err
+        }
+
+    // switch g.State {
+    // case StateMenu:
+    //     return g.updateMenu()
+    // case StatePlaying:
+    //     return g.updateGame()
+    // case StateGameOver:
+    //     return g.updateGameOver()
+    // case StatePaused:
+    //     return g.updatePaused()
+    // }
+    // return nil
+    //Check if user selected an option
+        if g.menuUI.IsEnterPressed() {
+            switch g.menuUI.GetSelectedOption() {
+            case 0: // 呪術開始 (START)
+                g.showMenu = false
+                // Start your game logic
+            case 1: // 一時停止 (PAUSE)
+                // Pause game logic
+            case 2: // 再開 (RESUME)
+                g.showMenu = false
+                // Resume game logic
+            case 3: // 退出 (QUIT)
+                return fmt.Errorf("quit game")
+            }
+        }
+        return nil
     }
+    
+    // Your existing game update logic here
     return nil
 }
 
@@ -268,18 +296,21 @@ func (g *Game) resetPlayerPosition() {
 }
 
 func (g *Game) resetGhosts() {
-    // Reset ghost positions and modes
+    // Force ghosts to proper starting positions in empty spaces
     ghostStartPositions := [][2]float64{
-        {13 * TileSize, 13 * TileSize}, // jogo
-        {13 * TileSize, 15 * TileSize}, // sukuna  
-        {12 * TileSize, 15 * TileSize}, // kenjaku
-        {14 * TileSize, 15 * TileSize}, // mahito
+        {13 * TileSize, 13 * TileSize}, // jogo - center of ghost house
+        {12 * TileSize, 13 * TileSize}, // sukuna - left of center
+        {14 * TileSize, 13 * TileSize}, // kenjaku - right of center  
+        {13 * TileSize, 11 * TileSize}, // mahito - above center
     }
     
     for i, ghost := range g.Ghosts {
         if i < len(ghostStartPositions) {
             ghost.X = ghostStartPositions[i][0]
             ghost.Y = ghostStartPositions[i][1]
+            fmt.Printf("Reset ghost %s to position (%.1f, %.1f) = tile (%d, %d)\n", 
+                      ghost.Name, ghost.X, ghost.Y, 
+                      int(ghost.X)/TileSize, int(ghost.Y)/TileSize)
         }
         ghost.ResetMode()
         ghost.SetVisible(true)
@@ -288,7 +319,6 @@ func (g *Game) resetGhosts() {
     g.powerPelletActive = false
     g.powerPelletTimer = 0
 }
-
 func (g *Game) resetGame() {
     g.Player.Score = 0
     g.lives = 3

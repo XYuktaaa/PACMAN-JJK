@@ -35,6 +35,7 @@ type Ghost struct {
 	LastTileX     int
 	LastTileY     int
 	MovementSmooth bool
+	TargetUpdateTimer int
 }
 
 func NewGhost(x, y float64, spritePath string, name string, size int) *Ghost {
@@ -75,11 +76,19 @@ func NewGhost(x, y float64, spritePath string, name string, size int) *Ghost {
 }
 
 // Update ghost behavior and movement
-func (g *Ghost) Update(level [][]int, tileSize int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64) {
+func (g *Ghost) Update(level [][]int, TileSize int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64) {
 	// Update mode timing (simplified - you might want more complex mode switching)
  	fmt.Printf("Ghost %s: Before update at (%.1f, %.1f)\n", g.Name, g.X, g.Y)
     
 	g.ModeTimer++
+	g.TargetUpdateTimer++
+	// Only update target every 30 frames (0.5 seconds) to prevent erratic behavior
+    if g.TargetUpdateTimer >= 30 {
+        g.updateTarget(level, playerX, playerY, playerDirection, blinkyX, blinkyY, TileSize)
+        g.TargetUpdateTimer = 0
+    }
+    // Always try to move towards current target
+    g.moveToTarget(level, TileSize)
 	if g.ModeTimer > 1200 { // Switch modes every 20 seconds at 60 FPS
 		if g.Mode == Chase {
 			g.Mode = Scatter
@@ -91,19 +100,19 @@ func (g *Ghost) Update(level [][]int, tileSize int, playerX, playerY float64, pl
 	}
 
 	// Update target based on current mode and ghost type
-	g.updateTarget(level, playerX, playerY, playerDirection, blinkyX, blinkyY, tileSize)
+	g.updateTarget(level, playerX, playerY, playerDirection, blinkyX, blinkyY, TileSize)
 	fmt.Printf("Ghost %s: Target set to (%d, %d)\n", g.Name, g.TargetX, g.TargetY)
     
 	// Move towards target
-	g.moveToTarget(level, tileSize)
+	g.moveToTarget(level, TileSize)
 	fmt.Printf("Ghost %s: After update at (%.1f, %.1f)\n", g.Name, g.X, g.Y)
 
 }
 
 // Set target tile based on ghost personality and current mode
-func (g *Ghost) updateTarget(level [][]int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64, tileSize int) {
-    playerTileX := int(playerX) / tileSize
-    playerTileY := int(playerY) / tileSize
+func (g *Ghost) updateTarget(level [][]int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64, TileSize int) {
+    playerTileX := int(playerX) / TileSize
+    playerTileY := int(playerY) / TileSize
     
     // Ensure player tile is within bounds
     if playerTileX < 0 { playerTileX = 0 }
@@ -132,8 +141,8 @@ func (g *Ghost) updateTarget(level [][]int, playerX, playerY float64, playerDire
 
     if g.Mode == Frightened {
         // Simple random movement - just pick a nearby empty tile
-        currentTileX := int(g.X) / tileSize
-        currentTileY := int(g.Y) / tileSize
+        currentTileX := int(g.X) / TileSize
+        currentTileY := int(g.Y) / TileSize
         
         // Try to move in a random direction
         directions := [][2]int{{0,1}, {1,0}, {0,-1}, {-1,0}}
@@ -182,8 +191,8 @@ func (g *Ghost) updateTarget(level [][]int, playerX, playerY float64, playerDire
         g.TargetY = playerTileY + 1
 
     case "mahito": // Chase with distance check
-        currentTileX := int(g.X) / tileSize
-        currentTileY := int(g.Y) / tileSize
+        currentTileX := int(g.X) / TileSize
+        currentTileY := int(g.Y) / TileSize
         distance := abs(playerTileX-currentTileX) + abs(playerTileY-currentTileY)
         
         if distance > 8 {
@@ -235,14 +244,15 @@ func abs(x int) int {
     return x
 }
 // Improved movement with smoother pathfinding
-func (g *Ghost) moveToTarget(level [][]int, tileSize int) {
-	currentTileX := int(g.X) / tileSize
-	currentTileY := int(g.Y) / tileSize
+func (g *Ghost) moveToTarget(level [][]int, TileSize int) {
+	currentTileX := int(g.X) / TileSize
+	currentTileY := int(g.Y) / TileSize
 	fmt.Printf("Ghost %s: moveToTarget called, current tile (%d,%d), target (%d,%d)\n", 
                g.Name, currentTileX, currentTileY, g.TargetX, g.TargetY)
 	// Only recalculate path if we've moved to a new tile or don't have a path
-	if g.Path == nil || g.PathIndex >= len(g.Path) || 
-	   currentTileX != g.LastTileX || currentTileY != g.LastTileY {
+	// if g.Path == nil || g.PathIndex >= len(g.Path) || 
+	//    currentTileX != g.LastTileX || currentTileY != g.LastTileY {
+if g.Path == nil || g.PathIndex >= len(g.Path) {
 		
 		path := findPath(level, currentTileX, currentTileY, g.TargetX, g.TargetY)
 		fmt.Printf("Ghost %s: findPath returned %d nodes\n", g.Name, len(path))
@@ -259,23 +269,24 @@ func (g *Ghost) moveToTarget(level [][]int, tileSize int) {
 
 	// Follow the path if we have one
 	if g.Path != nil && g.PathIndex < len(g.Path) {
-		g.followPath(tileSize)
+		g.followPath(TileSize)
 	}else {
         fmt.Printf("Ghost %s: No path to follow\n", g.Name)
     }
 }
 
 // Smooth movement along the calculated path
-func (g *Ghost) followPath(tileSize int) {
+func (g *Ghost) followPath(TileSize int) {
 	if g.PathIndex >= len(g.Path) {
+    	g.Path=nil
 		return
 	}
 
 	next := g.Path[g.PathIndex]
 	
 	// Calculate target pixel position (center of tile)
-	targetX := float64(next.X*tileSize) + float64(tileSize)/2 - float64(g.Size)/2
-	targetY := float64(next.Y*tileSize) + float64(tileSize)/2 - float64(g.Size)/2
+	targetX := float64(next.X*TileSize) + float64(TileSize)/2 - float64(g.Size)/2
+	targetY := float64(next.Y*TileSize) + float64(TileSize)/2 - float64(g.Size)/2
 
 	// Calculate movement vector
 	dx := targetX - g.X
@@ -363,7 +374,7 @@ func (g *Ghost) ResetMode() {
 }
 
 // Get current tile position
-func (g *Ghost) GetTilePosition(tileSize int) (int, int) {
+func (g *Ghost) GetTilePosition(TileSize int) (int, int) {
 	return int(g.X) / TileSize, int(g.Y) / TileSize
 }
 
@@ -377,3 +388,4 @@ func (g *Ghost) CollidesWith(playerX, playerY float64, playerSize int) bool {
 	distance := math.Hypot(centerX-playerCenterX, centerY-playerCenterY)
 	return distance < float64(g.Size+playerSize)/3 // Adjust collision sensitivity
 }
+
