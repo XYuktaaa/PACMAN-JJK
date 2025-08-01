@@ -14,7 +14,7 @@ type Pellet struct{
     Eaten bool
     IsPower bool
     Image *ebiten.Image
-}
+    }
 
 var(
     Pellets          []*Pellet
