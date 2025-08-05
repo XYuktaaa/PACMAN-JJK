@@ -60,3 +60,10 @@ go run main.go
 ├── assets.go            # Asset loader (image & GIF)
 ├── README.md            # This file
 ```
+## 📸 Screenshots
+
+### 🏁 Main Menu  
+![Main Menu](assets/refrence.png)
+
+### 🎮 Gameplay  
+![Gameplay](screenshots/gameplay.png)
