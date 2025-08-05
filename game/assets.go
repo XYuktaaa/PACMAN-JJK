@@ -9,9 +9,19 @@ import (
     _ "image/png"
     "github.com/hajimehoshi/ebiten/v2"
     "github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    _ "github.com/hajimehoshi/ebiten/v2/text"
+    _ "embed"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+	//"io/ioutil"
 )
+//go:embed assets/PressStart2P-Regular.ttf
+var fontBytes []byte
 
-
+var (
+	bigfont        font.Face
+	PressStartFont *opentype.Font
+)
 const (
     TileEmpty       = 0
     TileWall        = 1
@@ -19,27 +29,6 @@ const (
     TilePlayer      = 3
     TilePowerPellet = 4
 )
-// var level = [][]int{
-//     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-//     {1,3,2,2,2,2,2,1,2,4,2,1,2,2,2,2,2,2,1},
-//     {1,2,1,1,1,2,2,1,2,1,2,1,2,2,1,1,1,2,1},
-//     {1,2,1,0,1,2,2,1,2,1,2,1,2,2,1,0,1,2,1},
-//     {1,2,1,0,1,2,2,1,2,1,2,1,2,2,1,0,1,2,1},
-//     {1,2,1,0,1,2,2,1,2,1,2,1,2,2,1,0,1,2,1},
-//     {1,2,1,0,1,2,2,1,2,2,2,1,2,2,1,0,1,2,1},
-//     {1,2,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,2,1},
-//     {1,2,1,0,0,0,0,0,0,4,0,0,0,0,0,0,1,2,1},
-//     {1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1},
-//     {1,2,2,2,2,2,2,2,2,0,2,2,2,2,2,2,2,2,1},
-//     {1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1},
-//     {1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,1},
-//     {1,2,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,2,1},
-//     {1,2,1,0,1,2,2,2,2,4,2,2,2,2,1,0,1,2,1},
-//     {1,2,1,0,1,2,1,1,1,1,1,1,1,2,1,0,1,2,1},
-//     {1,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,1},
-//     {1,4,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,1},
-//     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-// }
 var level = [][]int{
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
     {1,2,2,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1},
@@ -99,6 +88,19 @@ func LoadAssets() {
     if err != nil {
         log.Fatal("failed to load player",err)
     }
+    ttf, err := opentype.Parse(fontBytes)
+	if err != nil {
+		log.Fatalf("failed to parse font: %v", err)
+	}
+
+	bigfont, err = opentype.NewFace(ttf, &opentype.FaceOptions{
+		Size:    24,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatalf("failed to create font face: %v", err)
+	}
 
     // PelletImage = ebiten.NewImage(8,8)
     // PelletImage.Fill(color.White)
@@ -117,4 +119,11 @@ func loadImage(path string) *ebiten.Image{
     }
 
     return ebiten.NewImageFromImage(img)
+}
+func LoadFont() {
+    var err error
+    PressStartFont, err = opentype.Parse(fontBytes)
+    if err != nil {
+        log.Fatal(err)
+    }
 }

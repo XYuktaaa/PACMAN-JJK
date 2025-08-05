@@ -26,15 +26,17 @@ type Game struct{
     Ghosts []*Ghost
     Pellet []Pellet
     menuUI *UIPage
-    showMenu bool
+    //showMenu bool
     lives    int
     playerStartX float64
     playerStartY float64
-    State  GameState
+    State  GameState //main state variable
     pelletCount  int
     powerPelletActive bool
 	powerPelletTimer int
-
+    logoImg *ebiten.Image
+    characterGif *ebiten.Image
+    bgTexture *ebiten.Image
 }
 
 const TileSize =32
@@ -45,7 +47,7 @@ func NewGame() *Game {
         g:= &Game{
         Player: NewPlayer(playerStartX,playerStartY,"assets/player.png"),
 		menuUI: NewUIPage(),
-        showMenu: true,
+        State: StateMenu,
         lives:  3,
         playerStartX: playerStartX,
         playerStartY: playerStartY,
@@ -66,46 +68,19 @@ return g
 }
 
 
-func (g *Game) Update()error{
-    if g.showMenu {
-        err := g.menuUI.Update()
-        if err != nil {
-            return err
-        }
-
-    // switch g.State {
-    // case StateMenu:
-    //     return g.updateMenu()
-    // case StatePlaying:
-    //     return g.updateGame()
-    // case StateGameOver:
-    //     return g.updateGameOver()
-    // case StatePaused:
-    //     return g.updatePaused()
-    // }
-    // return nil
-    //Check if user selected an option
-        if g.menuUI.IsEnterPressed() {
-            switch g.menuUI.GetSelectedOption() {
-            case 0: // 呪術開始 (START)
-                g.showMenu = false
-                // Start your game logic
-            case 1: // 一時停止 (PAUSE)
-                // Pause game logic
-            case 2: // 再開 (RESUME)
-                g.showMenu = false
-                // Resume game logic
-            case 3: // 退出 (QUIT)
-                return fmt.Errorf("quit game")
-            }
-        }
-        return nil
+func (g *Game) Update() error {
+    switch g.State {
+    case StateMenu:
+        return g.updateMenu()
+    case StatePlaying:
+        return g.updateGame()
+    case StateGameOver:
+        return g.updateGameOver()
+    case StatePaused:
+        return g.updatePaused()
     }
-    
-    // Your existing game update logic here
     return nil
 }
-
 func (g *Game) updateMenu() error {
     if g.menuUI != nil {
         err := g.menuUI.Update()
@@ -113,26 +88,27 @@ func (g *Game) updateMenu() error {
             return err
         }
         
-        if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-            g.State = StatePlaying
-        }
-        
+        // Handle menu selection
         if g.menuUI.IsEnterPressed() {
             switch g.menuUI.GetSelectedOption() {
-            case 0: // START
+            case 0: // START GAME
+                fmt.Println("Starting game...")
                 g.State = StatePlaying
                 g.resetGame()
-            case 1: // PAUSE
-                g.State = StatePaused
-            case 2: // RESUME
-                g.State = StatePlaying
-            case 3: // QUIT
+            case 1: // SETTINGS (you can implement later)
+                fmt.Println("Settings selected")
+                // For now, do nothing or show a message
+            case 2: // GALLERY (you can implement later)  
+                fmt.Println("Gallery selected")
+                // For now, do nothing or show a message
+            case 3: // EXIT
                 return fmt.Errorf("quit game")
             }
         }
     }
     return nil
 }
+
 
 func (g *Game) updateGame() error {
     // Handle pause
@@ -488,6 +464,10 @@ func DrawMaze(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+    // Use the modern menu size when in menu state
+    if g.State == StateMenu {
+        return 1200, 800  // Match the modern menu size
+    }
     width := len(level[0]) * TileSize
     height := len(level) * TileSize
     return width, height

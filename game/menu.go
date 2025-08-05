@@ -1,456 +1,18 @@
-// package main
-
-// import (
-// 	//"fmt"
-// 	"image/color"
-// 	"math"
-// 	//"strings"
-
-// 	"github.com/hajimehoshi/ebiten/v2"
-// 	//"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-// 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-// 	"github.com/hajimehoshi/ebiten/v2/text"
-// 	"github.com/hajimehoshi/ebiten/v2/vector"
-// 	//"golang.org/x/image/font"
-// 	"golang.org/x/image/font/basicfont"
-// )
-
-// const (
-// 	screenWidth  = 800
-// 	screenHeight = 600
-// )
-
-// type MenuState int
-
-// const (
-// 	MenuStart MenuState = iota
-// 	MenuPause
-// 	MenuResume
-// 	MenuQuit
-// )
-
-// type UIPage struct {
-// 	selectedOption   int
-// 	animationTime    float64
-// 	particleTime     float64
-// 	glowIntensity    float64
-// 	menuOptions      []string
-// 	pacmanX         float64
-// 	pacmanMouthAngle float64
-// 	cursedEnergy     []CursedEnergyParticle
-// }
-
-// type CursedEnergyParticle struct {
-// 	x, y     float64
-// 	vx, vy   float64
-// 	life     float64
-// 	maxLife  float64
-// 	size     float64
-// 	color    color.RGBA
-// }
-
-// func NewUIPage() *UIPage {
-// 	ui := &UIPage{
-// 		selectedOption: 0,
-// 		menuOptions:    []string{"START", "PAUSE", "RESUME", "QUIT"},
-// 		pacmanX:        -100,
-// 		cursedEnergy:   make([]CursedEnergyParticle, 50),
-// 	}
-	
-// 	// Initialize cursed energy particles
-// 	for i := range ui.cursedEnergy {
-// 		ui.cursedEnergy[i] = CursedEnergyParticle{
-// 			x:       math.Mod(float64(i*16), screenWidth),
-// 			y:       math.Mod(float64(i*12), screenHeight),
-// 			vx:      (math.Sin(float64(i)) * 0.5),
-// 			vy:      (math.Cos(float64(i)) * 0.3),
-// 			life:    1.0,
-// 			maxLife: 1.0,
-// 			size:    2 + math.Sin(float64(i))*1,
-// 			color:   color.RGBA{138, 43, 226, 100}, // Purple cursed energy
-// 		}
-// 	}
-	
-// 	return ui
-// }
-
-// func (ui *UIPage) Update() error {
-// 	ui.animationTime += 0.05
-// 	ui.particleTime += 0.02
-// 	ui.glowIntensity = 0.5 + 0.5*math.Sin(ui.animationTime*2)
-	
-// 	// Update Pacman position
-// 	ui.pacmanX += 2
-// 	if ui.pacmanX > screenWidth+50 {
-// 		ui.pacmanX = -100
-// 	}
-	
-// 	// Update Pacman mouth animation
-// 	ui.pacmanMouthAngle = math.Sin(ui.animationTime*8) * 0.7
-	
-// 	// Handle input
-// 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-// 		ui.selectedOption = (ui.selectedOption - 1 + len(ui.menuOptions)) % len(ui.menuOptions)
-// 	}
-// 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-// 		ui.selectedOption = (ui.selectedOption + 1) % len(ui.menuOptions)
-// 	}
-	
-// 	// Update cursed energy particles
-// 	for i := range ui.cursedEnergy {
-// 		p := &ui.cursedEnergy[i]
-// 		p.x += p.vx
-// 		p.y += p.vy
-		
-// 		// Wrap around screen
-// 		if p.x < 0 {
-// 			p.x = screenWidth
-// 		}
-// 		if p.x > screenWidth {
-// 			p.x = 0
-// 		}
-// 		if p.y < 0 {
-// 			p.y = screenHeight
-// 		}
-// 		if p.y > screenHeight {
-// 			p.y = 0
-// 		}
-		
-// 		// Pulsing effect
-// 		p.life = 0.5 + 0.5*math.Sin(ui.particleTime*3+float64(i)*0.1)
-// 	}
-	
-// 	return nil
-// }
-
-// func (ui *UIPage) Draw(screen *ebiten.Image) {
-// 	// Draw dark background with gradient effect
-// 	ui.drawBackground(screen)
-	
-// 	// Draw cursed energy particles
-// 	ui.drawCursedEnergyParticles(screen)
-	
-// 	// Draw animated Pacman
-// 	ui.drawAnimatedPacman(screen)
-	
-// 	// Draw title with glow effect
-// 	ui.drawTitle(screen)
-	
-// 	// Draw menu options
-// 	ui.drawMenu(screen)
-	
-// 	// Draw decorative elements
-// 	ui.drawDecorations(screen)
-	
-// 	// Draw instructions
-// 	ui.drawInstructions(screen)
-// }
-
-// func (ui *UIPage) drawBackground(screen *ebiten.Image) {
-// 	// Create a dark gradient background
-// 	for y := 0; y < screenHeight; y++ {
-// 		intensity := float64(y) / float64(screenHeight)
-// 		r := uint8(10 + intensity*20)
-// 		g := uint8(5 + intensity*15)
-// 		b := uint8(25 + intensity*40)
-		
-// 		vector.DrawFilledRect(screen, 0, float32(y), screenWidth, 1, 
-// 			color.RGBA{r, g, b, 255}, false)
-// 	}
-// }
-
-// func (ui *UIPage) drawCursedEnergyParticles(screen *ebiten.Image) {
-// 	for _, p := range ui.cursedEnergy {
-// 		alpha := uint8(p.life * 150)
-// 		particleColor := color.RGBA{138, 43, 226, alpha}
-		
-// 		// Draw particle with glow effect
-// 		vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
-// 			float32(p.size), particleColor, false)
-		
-// 		// Add inner glow
-// 		if p.life > 0.7 {
-// 			innerColor := color.RGBA{200, 100, 255, uint8(alpha/2)}
-// 			vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
-// 				float32(p.size*0.5), innerColor, false)
-// 		}
-// 	}
-// }
-
-// func (ui *UIPage) drawAnimatedPacman(screen *ebiten.Image) {
-// 	// Draw Pacman with Jujutsu Kaisen colors (golden/yellow)
-// 	pacmanY := float32(screenHeight/2 - 100)
-// 	pacmanSize := float32(40)
-	
-// 	// Main body
-// 	pacmanColor := color.RGBA{255, 215, 0, 255} // Gold color
-// 	vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, pacmanSize, pacmanColor, false)
-	
-// 	// Mouth (create pac-man effect)
-// 	mouthAngle := ui.pacmanMouthAngle
-// 	bgColor := color.RGBA{15, 10, 35, 255}
-	
-// 	// Draw mouth triangle
-// 	if mouthAngle > 0 {
-// 		x1 := float32(ui.pacmanX)
-// 		//y1 := pacmanY
-// 		x2 := float32(ui.pacmanX + float64(pacmanSize)*math.Cos(mouthAngle))
-// 		y2 := float32(float64(pacmanY) - float64(pacmanSize)*math.Sin(mouthAngle))
-// 		//x3 := float32(ui.pacmanX + float64(pacmanSize)*math.Cos(-mouthAngle))
-// 		y3 := float32(float64(pacmanY) - float64(pacmanSize)*math.Sin(-mouthAngle))
-		
-// 		// Fill the mouth area with background color
-// 		vector.DrawFilledRect(screen, x1, y2, x2-x1, y3-y2, bgColor, false)
-// 	}
-	
-// 	// Add cursed energy aura around Pacman
-// 	auraIntensity := ui.glowIntensity
-// 	auraColor := color.RGBA{138, 43, 226, uint8(50 * auraIntensity)}
-// 	vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, 
-// 		pacmanSize+float32(10*auraIntensity), auraColor, false)
-// }
-
-// func (ui *UIPage) drawTitle(screen *ebiten.Image) {
-// 	title := "呪術廻戦 PAC-MAN"
-// 	subtitle := "JUJUTSU KAISEN EDITION"
-	
-// 	// Main title with glow effect
-// 	titleY := 80
-// 	ui.drawGlowText(screen, title, screenWidth/2-len(title)*12, titleY, 
-// 		color.RGBA{255, 215, 0, 255}, 3.0)
-	
-// 	// Subtitle
-// 	subtitleY := titleY + 40
-// 	ui.drawGlowText(screen, subtitle, screenWidth/2-len(subtitle)*6, subtitleY, 
-// 		color.RGBA{200, 200, 255, 255}, 1.5)
-	
-// 	// Draw cursed technique symbols
-// 	ui.drawCursedSymbols(screen)
-// }
-
-// func (ui *UIPage) drawMenu(screen *ebiten.Image) {
-// 	menuStartY := 300
-// 	menuSpacing := 60
-	
-// 	for i, option := range ui.menuOptions {
-// 		y := menuStartY + i*menuSpacing
-// 		x := screenWidth/2 - len(option)*8
-		
-// 		// Highlight selected option
-// 		if i == ui.selectedOption {
-// 			// Draw selection background with cursed energy effect
-// 			glowColor := color.RGBA{138, 43, 226, uint8(100 * ui.glowIntensity)}
-// 			vector.DrawFilledRect(screen, float32(x-20), float32(y-10), 
-// 				float32(len(option)*16+40), 30, glowColor, false)
-			
-// 			// Draw option text with glow
-// 			ui.drawGlowText(screen, option, x, y, 
-// 				color.RGBA{255, 255, 255, 255}, 2.0)
-			
-// 			// Draw selection indicator
-// 			indicator := "►"
-// 			ui.drawGlowText(screen, indicator, x-30, y, 
-// 				color.RGBA{255, 215, 0, 255}, 2.0)
-// 		} else {
-// 			// Draw normal option
-// 			ui.drawGlowText(screen, option, x, y, 
-// 				color.RGBA{150, 150, 200, 255}, 1.0)
-// 		}
-// 	}
-// }
-
-// func (ui *UIPage) drawGlowText(screen *ebiten.Image, txt string, x, y int, clr color.RGBA, glowIntensity float64) {
-// 	// Draw glow effect
-// 	if glowIntensity > 1.0 {
-// 		glowColor := color.RGBA{clr.R, clr.G, clr.B, uint8(float64(clr.A) * 0.3)}
-// 		for dx := -2; dx <= 2; dx++ {
-// 			for dy := -2; dy <= 2; dy++ {
-// 				if dx != 0 || dy != 0 {
-// 					text.Draw(screen, txt, basicfont.Face7x13, x+dx, y+dy+13, glowColor)
-// 				}
-// 			}
-// 		}
-// 	}
-	
-// 	// Draw main text
-// 	text.Draw(screen, txt, basicfont.Face7x13, x, y+13, clr)
-// }
-
-// func (ui *UIPage) drawCursedSymbols(screen *ebiten.Image) {
-// 	// Draw some decorative cursed technique symbols
-// 	symbols := []string{"呪", "術", "式"}
-	
-// 	for i, symbol := range symbols {
-// 		x := 100 + i*600/len(symbols)
-// 		y := 150
-		
-// 		// Add floating animation
-// 		floatY := y + int(10*math.Sin(ui.animationTime+float64(i)))
-		
-// 		symbolColor := color.RGBA{138, 43, 226, uint8(150 * ui.glowIntensity)}
-// 		ui.drawGlowText(screen, symbol, x, floatY, symbolColor, 2.0)
-// 	}
-// }
-
-// func (ui *UIPage) drawDecorations(screen *ebiten.Image) {
-// 	// Draw decorative border lines with cursed energy effect
-// 	borderColor := color.RGBA{138, 43, 226, uint8(200 * ui.glowIntensity)}
-	
-// 	// Top border
-// 	vector.DrawFilledRect(screen, 50, 50, screenWidth-100, 3, borderColor, false)
-// 	// Bottom border  
-// 	vector.DrawFilledRect(screen, 50, screenHeight-53, screenWidth-100, 3, borderColor, false)
-	
-// 	// Side decorative elements
-// 	for i := 0; i < 5; i++ {
-// 		y := 100 + i*100
-// 		intensity := 0.5 + 0.5*math.Sin(ui.animationTime*2+float64(i)*0.5)
-// 		decorColor := color.RGBA{255, 215, 0, uint8(100 * intensity)}
-		
-// 		// Left side
-// 		vector.DrawFilledCircle(screen, 30, float32(y), 5, decorColor, false)
-// 		// Right side
-// 		vector.DrawFilledCircle(screen, screenWidth-30, float32(y), 5, decorColor, false)
-// 	}
-// }
-
-// func (ui *UIPage) drawInstructions(screen *ebiten.Image) {
-// 	instructions := []string{
-// 		"↑↓ Navigate Menu",
-// 		"ENTER Select Option",
-// 		"Embrace the Cursed Energy!",
-// 	}
-	
-// 	startY := screenHeight - 100
-// 	for i, instruction := range instructions {
-// 		x := screenWidth/2 - len(instruction)*4
-// 		y := startY + i*20
-		
-// 		instrColor := color.RGBA{150, 150, 200, 200}
-// 		if i == 2 { // Special color for the last line
-// 			instrColor = color.RGBA{138, 43, 226, 200}
-// 		}
-		
-// 		text.Draw(screen, instruction, basicfont.Face7x13, x, y, instrColor)
-// 	}
-// }
-
-// func (ui *UIPage) Layout(outsideWidth, outsideHeight int) (int, int) {
-// 	return screenWidth, screenHeight
-// }
-
-// // GetSelectedOption returns the currently selected menu option
-// func (ui *UIPage) GetSelectedOption() int {
-// 	return ui.selectedOption
-// }
-
-// // IsEnterPressed checks if enter key was just pressed
-// func (ui *UIPage) IsEnterPressed() bool {
-// 	return inpututil.IsKeyJustPressed(ebiten.KeyEnter)
-// }
-
-// // Integration example for your game.go:
-// /*
-// // Add this to your main game struct:
-// type Game struct {
-//     menuUI *UIPage
-//     showMenu bool
-//     // ... your existing fields
-// }
-
-// // In your game's Update() method:
-// func (g *Game) Update() error {
-//     if g.showMenu {
-//         err := g.menuUI.Update()
-//         if err != nil {
-//             return err
-//         }
-        
-//         // Check if user selected an option
-//         if g.menuUI.IsEnterPressed() {
-//             switch g.menuUI.GetSelectedOption() {
-//             case 0: // START
-//                 g.showMenu = false
-//                 // Start your game logic
-//             case 1: // PAUSE
-//                 // Pause game logic
-//             case 2: // RESUME
-//                 g.showMenu = false
-//                 // Resume game logic
-//             case 3: // QUIT
-//                 return fmt.Errorf("quit game")
-//             }
-//         }
-//         return nil
-//     }
-    
-//     // Your existing game update logic here
-//     return nil
-// }
-
-// // In your game's Draw() method:
-// func (g *Game) Draw(screen *ebiten.Image) {
-//     if g.showMenu {
-//         g.menuUI.Draw(screen)
-//         return
-//     }
-    
-//     // Your existing game draw logic here
-// }
-
-// // Initialize in your main function:
-// func main() {
-//     game := &Game{
-//         menuUI: NewUIPage(),
-//         showMenu: true,
-//     }
-//     // ... rest of your ebiten.RunGame setup
-// }
-// */
 package main
 
 import (
-	//"fmt"
 	"image/color"
 	"math"
-	"math/rand"
-	//"strings"
-
 	"github.com/hajimehoshi/ebiten/v2"
-	//"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	//"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/font"
-    "golang.org/x/image/font/opentype"
-    "io/ioutil"
 )
 
-var bigFont font.Face 
-
 const (
-	screenWidth  = 1200  // Increased screen size
-	screenHeight = 800   // Increased screen size
-	
-	// Background image/gif placement area
-	// BACKGROUND_IMAGE_X = 0
-	// BACKGROUND_IMAGE_Y = 0  
-	// BACKGROUND_IMAGE_WIDTH = 1200
-	// BACKGROUND_IMAGE_HEIGHT = 800
-	// You can place a full-screen background image/gif here
-	
-	// Character image/gif placement areas
-	// CHARACTER_LEFT_X = 50     // Left side character area
-	// CHARACTER_LEFT_Y = 200
-	// CHARACTER_LEFT_WIDTH = 300
-	// CHARACTER_LEFT_HEIGHT = 400
-	
-	// CHARACTER_RIGHT_X = 850   // Right side character area  
-	// CHARACTER_RIGHT_Y = 200
-	// CHARACTER_RIGHT_WIDTH = 300
-	// CHARACTER_RIGHT_HEIGHT = 400
+	screenWidth  = 1200
+	screenHeight = 800
 )
 
 type MenuState int
@@ -463,79 +25,110 @@ const (
 )
 
 type UIPage struct {
-	selectedOption     int
-	animationTime      float64
-	particleTime       float64
-	glowIntensity      float64
-	menuOptions        []string
-	pacmanX           float64
-	pacmanMouthAngle  float64
-	cursedEnergy      []CursedEnergyParticle
-	domainParticles   []DomainParticle
-	selectedGlow      float64
-	pulseIntensity    float64
+	selectedOption       int
+	animationTime        float64
+	particleTime         float64
+	glowIntensity        float64
+	menuOptions          []string
+	pacmanX             float64
+	pacmanMouthAngle    float64
+	cursedEnergy        []CursedEnergyParticle
+	backgroundParticles []BackgroundParticle
+	hexagons           []HexagonElement
+	transitionOffset    float64
+	logoImage          *ebiten.Image  // Space for logo image
+	characterGif       *ebiten.Image  // Space for character GIF
+	backgroundTexture  *ebiten.Image  // Space for background texture
 }
 
 type CursedEnergyParticle struct {
-	x, y      float64
-	vx, vy    float64
-	life      float64
-	size      float64
-	color     color.RGBA
-	intensity float64
+	x, y         float64
+	vx, vy       float64
+	life         float64
+	maxLife      float64
+	size         float64
+	color        color.RGBA
+	pulsePhase   float64
+	trail        []TrailPoint
 }
 
-type DomainParticle struct {
+type TrailPoint struct {
+	x, y  float64
+	alpha float64
+}
+
+type BackgroundParticle struct {
+	x, y       float64
+	vx, vy     float64
+	size       float64
+	rotation   float64
+	rotSpeed   float64
+	color      color.RGBA
+	shape      int // 0=circle, 1=diamond, 2=cross
+}
+
+type HexagonElement struct {
 	x, y        float64
-	angle       float64
-	radius      float64
-	speed       float64
-	life        float64
-	glowRadius  float64
-}
-
-func init() {
-    fontBytes, _ := ioutil.ReadFile("assets/PressStart2P-Regular.ttf")
-    ttf, _ := opentype.Parse(fontBytes)
-    bigFont, _ = opentype.NewFace(ttf, &opentype.FaceOptions{
-        Size: 32,
-        DPI:  72,
-    })
+	size        float64
+	rotation    float64
+	rotSpeed    float64
+	alpha       float64
+	pulsePhase  float64
 }
 
 func NewUIPage() *UIPage {
 	ui := &UIPage{
-		selectedOption: 0,
-		menuOptions:    []string{"START GAME", "PAUSE", "RESUME", "QUIT"},
-		pacmanX:        -150,
-		cursedEnergy:   make([]CursedEnergyParticle, 40), // Reduced for cleaner look
-		domainParticles: make([]DomainParticle, 20),      // Reduced particles
+		selectedOption:      0,
+		menuOptions:        []string{"START GAME", "SETTINGS", "GALLERY", "EXIT"},
+		pacmanX:           -150,
+		cursedEnergy:      make([]CursedEnergyParticle, 80),
+		backgroundParticles: make([]BackgroundParticle, 60),
+		hexagons:          make([]HexagonElement, 12),
 	}
 	
-	// Initialize cursed energy particles (fewer for cleaner look)
+	// Initialize enhanced cursed energy particles with trails
 	for i := range ui.cursedEnergy {
 		ui.cursedEnergy[i] = CursedEnergyParticle{
-			x:         rand.Float64() * screenWidth,
-			y:         rand.Float64() * screenHeight,
-			vx:        (rand.Float64() - 0.5) * 1.5,
-			vy:        (rand.Float64() - 0.5) * 1.0,
-			life:      rand.Float64(),
-			size:      2 + rand.Float64()*4,
-			color:     color.RGBA{138, 43, 226, uint8(30 + rand.Intn(70))},
-			intensity: rand.Float64(),
+			x:          math.Mod(float64(i*20), screenWidth),
+			y:          math.Mod(float64(i*15), screenHeight),
+			vx:         (math.Sin(float64(i)) * 1.2),
+			vy:         (math.Cos(float64(i)) * 0.8),
+			life:       1.0,
+			maxLife:    1.0,
+			size:       3 + math.Sin(float64(i))*2,
+			pulsePhase: float64(i) * 0.1,
+			color:      color.RGBA{148, 0, 211, 180}, // Deep purple
+			trail:      make([]TrailPoint, 8),
 		}
 	}
 	
-	// Initialize domain expansion particles
-	for i := range ui.domainParticles {
-		ui.domainParticles[i] = DomainParticle{
-			x:          screenWidth / 2,
-			y:          screenHeight / 2,
-			angle:      rand.Float64() * 2 * math.Pi,
-			radius:     100 + rand.Float64()*200,
-			speed:      0.3 + rand.Float64()*0.8,
-			life:       rand.Float64(),
-			glowRadius: 3 + rand.Float64()*6,
+	// Initialize modern background particles
+	for i := range ui.backgroundParticles {
+		ui.backgroundParticles[i] = BackgroundParticle{
+			x:        math.Mod(float64(i*25), screenWidth),
+			y:        math.Mod(float64(i*18), screenHeight),
+			vx:       (math.Sin(float64(i)*0.1) * 0.3),
+			vy:       (math.Cos(float64(i)*0.1) * 0.2),
+			size:     2 + math.Sin(float64(i))*3,
+			rotation: float64(i) * 0.1,
+			rotSpeed: 0.01 + math.Sin(float64(i))*0.005,
+			shape:    i % 3,
+			color:    color.RGBA{65, 105, 225, 60}, // Steel blue with transparency
+		}
+	}
+	
+	// Initialize hexagonal UI elements
+	for i := range ui.hexagons {
+		angle := float64(i) * 2 * math.Pi / float64(len(ui.hexagons))
+		radius := 200.0 + math.Sin(float64(i))*50
+		ui.hexagons[i] = HexagonElement{
+			x:          screenWidth/2 + math.Cos(angle)*radius,
+			y:          screenHeight/2 + math.Sin(angle)*radius,
+			size:       20 + math.Sin(float64(i))*10,
+			rotation:   angle,
+			rotSpeed:   0.005 + math.Sin(float64(i))*0.003,
+			alpha:      0.3 + math.Sin(float64(i))*0.2,
+			pulsePhase: float64(i) * 0.2,
 		}
 	}
 	
@@ -543,325 +136,614 @@ func NewUIPage() *UIPage {
 }
 
 func (ui *UIPage) Update() error {
-	ui.animationTime += 0.03
-	ui.particleTime += 0.02
-	ui.glowIntensity = 0.6 + 0.4*math.Sin(ui.animationTime*2.5)
-	ui.pulseIntensity = 0.4 + 0.6*math.Sin(ui.animationTime*3)
-	ui.selectedGlow = 0.6 + 0.4*math.Sin(ui.animationTime*4)
+	ui.animationTime += 0.04
+	ui.particleTime += 0.03
+	ui.glowIntensity = 0.6 + 0.4*math.Sin(ui.animationTime*1.5)
+	ui.transitionOffset = math.Sin(ui.animationTime*0.5) * 20
 	
-	// Update Pacman movement
-	ui.pacmanX += 3
-	if ui.pacmanX > screenWidth+100 {
-		ui.pacmanX = -150
+	// Update enhanced Pacman animation
+	ui.pacmanX += 1.5
+	if ui.pacmanX > screenWidth+200 {
+		ui.pacmanX = -200
 	}
+	ui.pacmanMouthAngle = math.Sin(ui.animationTime*6) * 0.8
 	
-	// Pacman mouth animation
-	ui.pacmanMouthAngle = math.Sin(ui.animationTime*8) * 0.7
-	
-	// Handle input
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+	// Handle input with smooth transitions
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		ui.selectedOption = (ui.selectedOption - 1 + len(ui.menuOptions)) % len(ui.menuOptions)
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		ui.selectedOption = (ui.selectedOption + 1) % len(ui.menuOptions)
 	}
 	
-	// Update cursed energy particles
+	// Update cursed energy particles with trails
 	for i := range ui.cursedEnergy {
 		p := &ui.cursedEnergy[i]
 		
-		p.x += p.vx
-		p.y += p.vy
+		// Update trail
+		for j := len(p.trail) - 1; j > 0; j-- {
+			p.trail[j] = p.trail[j-1]
+			p.trail[j].alpha *= 0.9
+		}
+		p.trail[0] = TrailPoint{x: p.x, y: p.y, alpha: 1.0}
 		
-		// Wrap around screen
-		if p.x < 0 { p.x = screenWidth }
-		if p.x > screenWidth { p.x = 0 }
-		if p.y < 0 { p.y = screenHeight }
-		if p.y > screenHeight { p.y = 0 }
+		p.x += p.vx * (1 + 0.3*math.Sin(ui.animationTime+p.pulsePhase))
+		p.y += p.vy * (1 + 0.2*math.Cos(ui.animationTime+p.pulsePhase))
 		
-		// Pulsing effect
-		p.intensity = 0.4 + 0.6*math.Sin(ui.particleTime*3+float64(i)*0.2)
+		// Wrap around with smooth transitions
+		if p.x < -50 { p.x = screenWidth + 50 }
+		if p.x > screenWidth+50 { p.x = -50 }
+		if p.y < -50 { p.y = screenHeight + 50 }
+		if p.y > screenHeight+50 { p.y = -50 }
+		
+		// Enhanced pulsing
+		p.life = 0.4 + 0.6*math.Sin(ui.particleTime*2+p.pulsePhase)
 	}
 	
-	// Update domain particles
-	for i := range ui.domainParticles {
-		p := &ui.domainParticles[i]
-		p.angle += p.speed * 0.015
-		p.x = screenWidth/2 + math.Cos(p.angle)*p.radius
-		p.y = screenHeight/2 + math.Sin(p.angle)*p.radius
-		p.life = 0.3 + 0.7*math.Sin(ui.animationTime*1.5+float64(i)*0.4)
+	// Update background particles
+	for i := range ui.backgroundParticles {
+		p := &ui.backgroundParticles[i]
+		p.x += p.vx
+		p.y += p.vy
+		p.rotation += p.rotSpeed
+		
+		if p.x < -20 { p.x = screenWidth + 20 }
+		if p.x > screenWidth+20 { p.x = -20 }
+		if p.y < -20 { p.y = screenHeight + 20 }
+		if p.y > screenHeight+20 { p.y = -20 }
+	}
+	
+	// Update hexagons
+	for i := range ui.hexagons {
+		h := &ui.hexagons[i]
+		h.rotation += h.rotSpeed
+		h.alpha = 0.2 + 0.3*math.Sin(ui.animationTime*1.2+h.pulsePhase)
 	}
 	
 	return nil
 }
 
 func (ui *UIPage) Draw(screen *ebiten.Image) {
-	// STEP 1: Draw background image/gif here if you have one
-	// Example: screen.DrawImage(backgroundImage, &ebiten.DrawImageOptions{})
+	// Draw modern gradient background
+	ui.drawModernBackground(screen)
 	
-	// Draw gradient background
-	ui.drawCleanBackground(screen)
+	// Draw background particles
+	ui.drawBackgroundParticles(screen)
 	
-	// Draw subtle cursed energy particles
-	ui.drawCursedEnergyParticles(screen)
+	// Draw hexagonal UI elements
+	ui.drawHexagonElements(screen)
 	
-	// Draw domain expansion effect (subtle)
-	ui.drawDomainParticles(screen)
+	// Draw cursed energy with trails
+	ui.drawEnhancedCursedEnergy(screen)
 	
-	// STEP 2: Draw character images here
-	// Left side character area (50, 200, 300x400)
-	// Right side character area (850, 200, 300x400)
+	// Draw character area (reserved for GIFs/images)
+	ui.drawCharacterArea(screen)
 	
-	// Draw enhanced Pacman
-	ui.drawEnhancedPacman(screen)
+	// Draw modern title with effects
+	ui.drawModernTitle(screen)
 	
-	// Draw clean title
-	ui.drawCleanTitle(screen)
+	// Draw sleek menu
+	ui.drawSleekMenu(screen)
 	
-	// Draw menu with better spacing
-	ui.drawCleanMenu(screen)
+	// Draw animated Pacman with modern effects
+	ui.drawModernPacman(screen)
 	
-	// Draw instructions
-	ui.drawInstructions(screen)
+	// Draw modern UI elements
+	ui.drawModernUIElements(screen)
+	
+	// Draw footer with instructions
+	ui.drawModernFooter(screen)
 }
 
-func (ui *UIPage) drawCleanBackground(screen *ebiten.Image) {
-	// Clean gradient background
+func (ui *UIPage) drawModernBackground(screen *ebiten.Image) {
+	// Create a sophisticated gradient background
 	for y := 0; y < screenHeight; y++ {
 		progress := float64(y) / float64(screenHeight)
 		
-		// Darker, cleaner gradient
-		r := uint8(8 + progress*20)
-		g := uint8(4 + progress*15)
-		b := uint8(25 + progress*45)
+		// Multi-layered gradient
+		r1, g1, b1 := 8, 12, 25    // Dark navy at top
+		r2, g2, b2 := 25, 15, 45   // Deep purple at bottom
+		
+		r := uint8(float64(r1) + (float64(r2-r1))*progress)
+		g := uint8(float64(g1) + (float64(g2-g1))*progress)
+		b := uint8(float64(b1) + (float64(b2-b1))*progress)
+		
+		// Add subtle animation
+		waveOffset := math.Sin(float64(y)*0.01 + ui.animationTime*0.5) * 5
+		r = uint8(math.Max(0, math.Min(255, float64(r)+waveOffset)))
 		
 		vector.DrawFilledRect(screen, 0, float32(y), screenWidth, 1, 
 			color.RGBA{r, g, b, 255}, false)
 	}
 	
-	// Subtle vignette effect
-	centerX, centerY := screenWidth/2, screenHeight/2
-	maxDist := math.Sqrt(float64(centerX*centerX + centerY*centerY))
-	
-	for y := 0; y < screenHeight; y += 8 {
-		for x := 0; x < screenWidth; x += 8 {
-			dx := float64(x - centerX)
-			dy := float64(y - centerY)
-			dist := math.Sqrt(dx*dx + dy*dy)
-			
-			if dist > maxDist*0.7 {
-				alpha := uint8((dist - maxDist*0.7) / (maxDist*0.3) * 60)
-				vector.DrawFilledRect(screen, float32(x), float32(y), 8, 8,
-					color.RGBA{0, 0, 0, alpha}, false)
+	// Add subtle scan lines for modern effect
+	for y := 0; y < screenHeight; y += 4 {
+		alpha := uint8(20 + 10*math.Sin(ui.animationTime*2+float64(y)*0.1))
+		vector.DrawFilledRect(screen, 0, float32(y), screenWidth, 1, 
+			color.RGBA{100, 150, 255, alpha}, false)
+	}
+}
+
+func (ui *UIPage) drawBackgroundParticles(screen *ebiten.Image) {
+	for _, p := range ui.backgroundParticles {
+		alpha := uint8(p.color.A * (uint8)(0.5 + 0.5*math.Sin(ui.animationTime+p.rotation)))
+		particleColor := color.RGBA{p.color.R, p.color.G, p.color.B, alpha}
+		
+		switch p.shape {
+		case 0: // Circle
+			vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
+				float32(p.size), particleColor, false)
+		case 1: // Diamond
+			ui.drawDiamond(screen, p.x, p.y, p.size, p.rotation, particleColor)
+		case 2: // Cross
+			ui.drawCross(screen, p.x, p.y, p.size, p.rotation, particleColor)
+		}
+	}
+}
+
+func (ui *UIPage) drawHexagonElements(screen *ebiten.Image) {
+	for _, h := range ui.hexagons {
+		alpha := uint8(255 * h.alpha * ui.glowIntensity)
+		hexColor := color.RGBA{148, 0, 211, alpha}
+		
+		ui.drawHexagon(screen, h.x, h.y, h.size, h.rotation, hexColor)
+	}
+}
+
+func (ui *UIPage) drawEnhancedCursedEnergy(screen *ebiten.Image) {
+	for _, p := range ui.cursedEnergy {
+		// Draw trail
+		for i, trail := range p.trail {
+			if i > 0 && trail.alpha > 0.1 {
+				size := p.size * trail.alpha * 0.8
+				alpha := uint8(150 * trail.alpha * p.life)
+				trailColor := color.RGBA{148, 0, 211, alpha}
+				
+				vector.DrawFilledCircle(screen, float32(trail.x), float32(trail.y), 
+					float32(size), trailColor, false)
 			}
 		}
-	}
-}
-
-func (ui *UIPage) drawCursedEnergyParticles(screen *ebiten.Image) {
-	for _, p := range ui.cursedEnergy {
-		alpha := uint8(p.intensity * float64(p.color.A))
+		
+		// Draw main particle with enhanced effects
+		alpha := uint8(200 * p.life)
+		mainColor := color.RGBA{148, 0, 211, alpha}
+		
+		// Outer glow
+		glowSize := p.size * 2.5
+		glowAlpha := uint8(alpha / 3)
+		glowColor := color.RGBA{200, 100, 255, glowAlpha}
+		vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
+			float32(glowSize), glowColor, false)
 		
 		// Main particle
-		mainColor := color.RGBA{p.color.R, p.color.G, p.color.B, alpha}
-		vector.DrawFilledCircle(screen, float32(p.x), float32(p.y),
+		vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
 			float32(p.size), mainColor, false)
 		
-		// Subtle glow
-		if p.intensity > 0.7 {
-			glowColor := color.RGBA{p.color.R, p.color.G, p.color.B, alpha/3}
-			vector.DrawFilledCircle(screen, float32(p.x), float32(p.y),
-				float32(p.size*2), glowColor, false)
-		}
-	}
-}
-
-func (ui *UIPage) drawDomainParticles(screen *ebiten.Image) {
-	for _, p := range ui.domainParticles {
-		if p.life < 0.3 { continue } // Only draw visible particles
-		
-		alpha := uint8(p.life * 100)
-		
-		// Main particle
-		particleColor := color.RGBA{200, 100, 255, alpha}
-		vector.DrawFilledCircle(screen, float32(p.x), float32(p.y),
-			float32(p.glowRadius), particleColor, false)
-		
-		// Connection line to center (very subtle)
+		// Inner core
 		if p.life > 0.8 {
-			lineColor := color.RGBA{138, 43, 226, uint8(alpha/6)}
-			ui.drawLine(screen, float32(p.x), float32(p.y),
-				screenWidth/2, screenHeight/2, 1, lineColor)
+			coreColor := color.RGBA{255, 255, 255, uint8(alpha/2)}
+			vector.DrawFilledCircle(screen, float32(p.x), float32(p.y), 
+				float32(p.size*0.3), coreColor, false)
 		}
 	}
 }
 
-func (ui *UIPage) drawLine(screen *ebiten.Image, x1, y1, x2, y2, thickness float32, clr color.RGBA) {
-	dx := x2 - x1
-	dy := y2 - y1
-	length := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+func (ui *UIPage) drawCharacterArea(screen *ebiten.Image) {
+	// Reserved area for character GIF/image (top-right)
+	charAreaX := float32(screenWidth - 300)
+	charAreaY := float32(50)
+	charAreaWidth := float32(250)
+	charAreaHeight := float32(250)
 	
-	if length > 0 {
-		steps := int(length / 4) // Fewer steps for performance
-		for i := 0; i <= steps; i++ {
-			t := float32(i) / float32(steps)
-			x := x1 + dx*t
-			y := y1 + dy*t
-			vector.DrawFilledCircle(screen, x, y, thickness/2, clr, false)
-		}
-	}
-}
-
-func (ui *UIPage) drawEnhancedPacman(screen *ebiten.Image) {
-	pacmanY := float32(150) // Moved higher up
-	pacmanSize := float32(60) // Bigger size
+	// Draw placeholder frame with modern styling
+	frameColor := color.RGBA{100, 150, 255, 80}
+	vector.StrokeRect(screen, charAreaX, charAreaY, charAreaWidth, charAreaHeight, 3, frameColor, false)
 	
-	// Cursed energy aura (subtle)
-	auraIntensity := ui.pulseIntensity * 0.6
-	auraColor := color.RGBA{138, 43, 226, uint8(40 * auraIntensity)}
-	vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY,
-		pacmanSize+float32(20*auraIntensity), auraColor, false)
+	// Add corner accents
+	cornerSize := float32(20)
+	accentColor := color.RGBA{255, 215, 0, 200}
 	
-	// Main Pacman body
-	pacmanColor := color.RGBA{255, 215, 0, 255}
-	vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, pacmanSize, pacmanColor, false)
+	// Top-left corner
+	vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, cornerSize, 3, accentColor, false)
+	vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, 3, cornerSize, accentColor, false)
 	
-	// Mouth animation
-	mouthAngle := ui.pacmanMouthAngle
-	if mouthAngle > 0 {
-		bgColor := color.RGBA{15, 10, 35, 255}
-		centerX := float32(ui.pacmanX)
-		centerY := pacmanY
+	// Top-right corner
+	vector.DrawFilledRect(screen, charAreaX+charAreaWidth-cornerSize+2, charAreaY-2, cornerSize, 3, accentColor, false)
+	vector.DrawFilledRect(screen, charAreaX+charAreaWidth-1, charAreaY-2, 3, cornerSize, accentColor, false)
+	
+	// Placeholder text
+	if ui.characterGif == nil {
+		placeholderText := "CHARACTER"
+		textX := int(charAreaX + charAreaWidth/2 - float32(len(placeholderText)*4))
+		textY := int(charAreaY + charAreaHeight/2)
+		ui.drawGlowText(screen, placeholderText, textX, textY, 
+			color.RGBA{150, 150, 200, 150}, 1.0)
 		
-		mouthSize := pacmanSize * 0.8
-		x2 := centerX + float32(math.Cos(mouthAngle)*float64(mouthSize))
-		y2 := centerY - float32(math.Sin(mouthAngle)*float64(mouthSize))
-		x3 := centerX + float32(math.Cos(-mouthAngle)*float64(mouthSize))
-		y3 := centerY - float32(math.Sin(-mouthAngle)*float64(mouthSize))
-		
-		ui.drawTriangle(screen, centerX, centerY, x2, y2, x3, y3, bgColor)
+		subText := "ANIMATION AREA"
+		subTextX := int(charAreaX + charAreaWidth/2 - float32(len(subText)*3))
+		subTextY := textY + 20
+		ui.drawGlowText(screen, subText, subTextX, subTextY, 
+			color.RGBA{100, 100, 150, 100}, 0.8)
 	}
 }
 
-func (ui *UIPage) drawTriangle(screen *ebiten.Image, x1, y1, x2, y2, x3, y3 float32, clr color.RGBA) {
-	// Simple triangle fill
-	minY := int(math.Min(float64(y1), math.Min(float64(y2), float64(y3))))
-	maxY := int(math.Max(float64(y1), math.Max(float64(y2), float64(y3))))
-	
-	for y := minY; y <= maxY; y++ {
-		vector.DrawFilledRect(screen, x1-15, float32(y), 30, 1, clr, false)
-	}
-}
-
-func (ui *UIPage) drawCleanTitle(screen *ebiten.Image) {
-	// Main title - larger and cleaner
-	title := "JUJUTSU KAISEN"
-	subtitle := "PAC-MAN EDITION"
+func (ui *UIPage) drawModernTitle(screen *ebiten.Image) {
+	// Main title with enhanced effects
+	title := "呪術廻戦 × PAC-MAN"
+	subtitle := "JUJUTSU KAISEN EDITION"
 	
 	titleY := 100
+	titleX := screenWidth/2 - len(title)*16
 	
-	// Subtle domain expansion circle behind title
-	domainRadius := 200 + math.Sin(ui.animationTime)*30
-	domainColor := color.RGBA{138, 43, 226, uint8(25*ui.glowIntensity)}
-	vector.DrawFilledCircle(screen, screenWidth/2, float32(titleY+30),
-		float32(domainRadius), domainColor, false)
+	// Title background panel
+	panelWidth := float32(len(title) * 32 + 60)
+	panelHeight := float32(80)
+	panelX := float32(titleX - 30)
+	panelY := float32(titleY - 20)
 	
-	// Title with enhanced glow
-	titleX := screenWidth/2 - len(title)*20 // Bigger font spacing
-	ui.drawLargeGlowText(screen, title, titleX, titleY,
-		color.RGBA{255, 215, 0, 255}, 3.0)
+	// Draw panel with glassmorphism effect
+	panelColor := color.RGBA{20, 30, 60, 120}
+	vector.DrawFilledRect(screen, panelX, panelY, panelWidth, panelHeight, panelColor, false)
 	
-	// Subtitle
-	subtitleY := titleY + 80 // More spacing
-	subtitleX := screenWidth/2 - len(subtitle)*16
-	ui.drawLargeGlowText(screen, subtitle, subtitleX, subtitleY,
-		color.RGBA{200, 200, 255, 255}, 2.0)
+	// Panel border with glow
+	borderColor := color.RGBA{100, 150, 255, uint8(150 * ui.glowIntensity)}
+	vector.StrokeRect(screen, panelX, panelY, panelWidth, panelHeight, 2, borderColor, false)
+	
+	// Draw title with enhanced glow
+	ui.drawGlowText(screen, title, titleX, titleY, 
+		color.RGBA{255, 215, 0, 255}, 4.0)
+	
+	// Subtitle with modern styling
+	subtitleY := titleY + 45
+	subtitleX := screenWidth/2 - len(subtitle)*6
+	ui.drawGlowText(screen, subtitle, subtitleX, subtitleY, 
+		color.RGBA{150, 200, 255, 255}, 2.0)
+	
+	// Logo area (top-left)
+	logoAreaX := float32(50)
+	logoAreaY := float32(50)
+	logoSize := float32(80)
+	
+	if ui.logoImage == nil {
+		// Placeholder logo frame
+		logoColor := color.RGBA{255, 215, 0, 150}
+		vector.StrokeRect(screen, logoAreaX, logoAreaY, logoSize, logoSize, 2, logoColor, false)
+		
+		// Placeholder text
+		ui.drawGlowText(screen, "LOGO", int(logoAreaX+20), int(logoAreaY+40), 
+			color.RGBA{255, 215, 0, 200}, 1.5)
+	}
 }
 
-func (ui *UIPage) drawCleanMenu(screen *ebiten.Image) {
-	menuStartY := 400 // Moved down for better spacing
-	menuSpacing := 100 // Increased spacing
+func (ui *UIPage) drawSleekMenu(screen *ebiten.Image) {
+	menuStartY := 350
+	menuSpacing := 80
+	menuWidth := 400
+	menuX := screenWidth/2 - menuWidth/2
+	
+	// Draw menu background panel
+	panelHeight := float32(len(ui.menuOptions)*menuSpacing + 40)
+	panelColor := color.RGBA{15, 25, 45, 180}
+	vector.DrawFilledRect(screen, float32(menuX-40), float32(menuStartY-20), 
+		float32(menuWidth+80), panelHeight, panelColor, false)
+	
+	// Panel border
+	borderColor := color.RGBA{100, 150, 255, 100}
+	vector.StrokeRect(screen, float32(menuX-40), float32(menuStartY-20), 
+		float32(menuWidth+80), panelHeight, 1, borderColor, false)
 	
 	for i, option := range ui.menuOptions {
 		y := menuStartY + i*menuSpacing
-		x := screenWidth/2 - len(option)*20 // Bigger font spacing
+		x := menuX
 		
 		if i == ui.selectedOption {
-			// Clean selection background
-			selectionWidth := float32(len(option)*40 + 100)
-			selectionHeight := float32(70)
+			// Selected option with modern styling
+			selectionWidth := float32(menuWidth)
+			selectionHeight := float32(60)
+			selectionX := float32(x - 20)
+			selectionY := float32(y - 15)
 			
-			// Glow effect
-			glowColor := color.RGBA{138, 43, 226, uint8(120 * ui.selectedGlow)}
-			vector.DrawFilledRect(screen,
-				float32(x-50), float32(y-25),
-				selectionWidth, selectionHeight, glowColor, false)
+			// Animated selection background
+			glowIntensity := ui.glowIntensity
+			selectionColor := color.RGBA{148, 0, 211, uint8(150 * glowIntensity)}
+			vector.DrawFilledRect(screen, selectionX, selectionY, 
+				selectionWidth, selectionHeight, selectionColor, false)
 			
-			// Enhanced selected text
-			ui.drawLargeGlowText(screen, option, x, y,
+			// Selection border with glow
+			borderGlow := color.RGBA{255, 215, 0, uint8(200 * glowIntensity)}
+			vector.StrokeRect(screen, selectionX, selectionY, 
+				selectionWidth, selectionHeight, 2, borderGlow, false)
+			
+			// Option text with enhanced glow
+			ui.drawGlowText(screen, option, x, y, 
 				color.RGBA{255, 255, 255, 255}, 3.0)
 			
-			// Selection indicator
-			indicator := ">"
-			ui.drawLargeGlowText(screen, indicator, x-70, y,
-				color.RGBA{255, 215, 0, 255}, 2.5)
+			// Modern selection indicator
+			indicatorX := x - 40
+			indicatorY := float32(y + 5)
+			ui.drawModernArrow(screen, float32(indicatorX), indicatorY, 
+				color.RGBA{255, 215, 0, 255})
+			
+			// Add side accent lines
+			accentColor := color.RGBA{255, 215, 0, uint8(200 * glowIntensity)}
+			vector.DrawFilledRect(screen, selectionX-5, selectionY, 3, selectionHeight, accentColor, false)
+			vector.DrawFilledRect(screen, selectionX+selectionWidth+2, selectionY, 3, selectionHeight, accentColor, false)
 		} else {
-			// Normal menu option
-			ui.drawLargeGlowText(screen, option, x, y,
-				color.RGBA{150, 150, 200, 255}, 1.0)
+			// Unselected options with subtle styling
+			ui.drawGlowText(screen, option, x, y, 
+				color.RGBA{180, 180, 220, 200}, 1.2)
 		}
 	}
 }
 
-func (ui *UIPage) drawLargeGlowText(screen *ebiten.Image, txt string, x, y int, clr color.RGBA, glowIntensity float64) {
-	// Draw multiple text instances for larger appearance and glow
-	offsets := []struct{ dx, dy int }{
-		{-1, -1}, {0, -1}, {1, -1},
-		{-1, 0},           {1, 0},
-		{-1, 1},  {0, 1},  {1, 1},
+func (ui *UIPage) drawModernPacman(screen *ebiten.Image) {
+	pacmanY := float32(screenHeight/2 - 50)
+	pacmanSize := float32(60)
+	
+	// Enhanced aura effect
+	auraLayers := 3
+	for layer := 0; layer < auraLayers; layer++ {
+		layerSize := pacmanSize + float32(layer*15) + float32(20*ui.glowIntensity)
+		layerAlpha := uint8((60) /float64 (layer + 1) * ui.glowIntensity)
+		auraColor := color.RGBA{148, 0, 211, layerAlpha}
+		
+		vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, 
+			layerSize, auraColor, false)
 	}
 	
-	// Glow effect
+	// Main Pacman body with gradient effect
+	pacmanColor := color.RGBA{255, 215, 0, 255}
+	vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, pacmanSize, pacmanColor, false)
+	
+	// Inner highlight
+	highlightColor := color.RGBA{255, 255, 200, 180}
+	vector.DrawFilledCircle(screen, float32(ui.pacmanX-10), pacmanY-10, 
+		pacmanSize*0.3, highlightColor, false)
+	
+	// Enhanced mouth animation
+	mouthAngle := ui.pacmanMouthAngle
+	if mouthAngle > 0 {
+		bgColor := color.RGBA{15, 25, 45, 255}
+		
+		// Create more realistic mouth shape
+		mouthWidth := pacmanSize * 0.8
+		mouthHeight := float32(float64(pacmanSize) * math.Sin(mouthAngle))
+		
+		// Upper mouth
+		vector.DrawFilledRect(screen, float32(ui.pacmanX), pacmanY-mouthHeight/2, 
+			mouthWidth, mouthHeight/2, bgColor, false)
+		// Lower mouth  
+		vector.DrawFilledRect(screen, float32(ui.pacmanX), pacmanY, 
+			mouthWidth, mouthHeight/2, bgColor, false)
+	}
+	
+	// Add cursed energy particles around Pacman
+	for i := 0; i < 8; i++ {
+		angle := float64(i) * math.Pi / 4 + ui.animationTime*2
+		distance := 80 + 20*math.Sin(ui.animationTime*3+float64(i))
+		px := ui.pacmanX + math.Cos(angle)*distance
+		py := float64(pacmanY) + math.Sin(angle)*distance
+		
+		particleSize := float32(5 + 3*math.Sin(ui.animationTime*4+float64(i)))
+		particleAlpha := uint8(150 + 100*math.Sin(ui.animationTime*2+float64(i)))
+		particleColor := color.RGBA{148, 0, 211, particleAlpha}
+		
+		vector.DrawFilledCircle(screen, float32(px), float32(py), 
+			particleSize, particleColor, false)
+	}
+}
+
+func (ui *UIPage) drawModernUIElements(screen *ebiten.Image) {
+	// Draw modern side panels
+	ui.drawSidePanels(screen)
+	
+	// Draw tech-style decorative elements
+	ui.drawTechDecorations(screen)
+	
+	// Draw status indicators
+	ui.drawStatusIndicators(screen)
+}
+
+func (ui *UIPage) drawSidePanels(screen *ebiten.Image) {
+	panelWidth := float32(120)
+	panelHeight := float32(screenHeight - 100)
+	
+	// Left panel
+	leftPanelColor := color.RGBA{10, 20, 40, 100}
+	vector.DrawFilledRect(screen, 25, 50, panelWidth, panelHeight, leftPanelColor, false)
+	
+	leftBorderColor := color.RGBA{100, 150, 255, 80}
+	vector.StrokeRect(screen, 25, 50, panelWidth, panelHeight, 1, leftBorderColor, false)
+	
+	// Right panel
+	rightX := float32(screenWidth - 145)
+	rightPanelColor := color.RGBA{10, 20, 40, 100}
+	vector.DrawFilledRect(screen, rightX, 50, panelWidth, panelHeight, rightPanelColor, false)
+	
+	rightBorderColor := color.RGBA{100, 150, 255, 80}
+	vector.StrokeRect(screen, rightX, 50, panelWidth, panelHeight, 1, rightBorderColor, false)
+}
+
+func (ui *UIPage) drawTechDecorations(screen *ebiten.Image) {
+	// Corner tech elements
+	corners := []struct{ x, y float32 }{
+		{60, 80}, {screenWidth - 180, 80},
+		{60, screenHeight - 120}, {screenWidth - 180, screenHeight - 120},
+	}
+	
+	for _, corner := range corners {
+		techColor := color.RGBA{100, 150, 255, uint8(120 * ui.glowIntensity)}
+		
+		// Tech corner brackets
+		bracketSize := float32(25)
+		vector.DrawFilledRect(screen, corner.x, corner.y, bracketSize, 2, techColor, false)
+		vector.DrawFilledRect(screen, corner.x, corner.y, 2, bracketSize, techColor, false)
+		
+		vector.DrawFilledRect(screen, corner.x, corner.y+50, bracketSize, 2, techColor, false)
+		vector.DrawFilledRect(screen, corner.x, corner.y+30, 2, bracketSize, techColor, false)
+	}
+}
+
+func (ui *UIPage) drawStatusIndicators(screen *ebiten.Image) {
+	// Bottom status bar
+	statusY := float32(screenHeight - 60)
+	statusColor := color.RGBA{20, 30, 50, 150}
+	vector.DrawFilledRect(screen, 50, statusY, screenWidth-100, 40, statusColor, false)
+	
+	// Status border
+	borderColor := color.RGBA{100, 150, 255, 100}
+	vector.StrokeRect(screen, 50, statusY, screenWidth-100, 40, 1, borderColor, false)
+	
+	// Animated status dots
+	for i := 0; i < 5; i++ {
+		dotX := float32(70 + i*30)
+		dotY := statusY + 20
+		dotSize := float32(4 + 2*math.Sin(ui.animationTime*3+float64(i)*0.5))
+		
+		dotAlpha := uint8(150 + 100*math.Sin(ui.animationTime*2+float64(i)*0.3))
+		dotColor := color.RGBA{148, 0, 211, dotAlpha}
+		
+		vector.DrawFilledCircle(screen, dotX, dotY, dotSize, dotColor, false)
+	}
+}
+
+func (ui *UIPage) drawModernFooter(screen *ebiten.Image) {
+	instructions := []string{
+		"↑↓ / W S  Navigate",
+		"ENTER  Select",
+		"Experience the Cursed Energy",
+	}
+	
+	startY := screenHeight - 40
+	for i, instruction := range instructions {
+		x := 80 + i*300
+		y := startY
+		
+		instrColor := color.RGBA{150, 180, 220, 180}
+		if i == 2 {
+			instrColor = color.RGBA{148, 0, 211, 200}
+		}
+		
+		ui.drawGlowText(screen, instruction, x, y, instrColor, 1.0)
+	}
+}
+
+// Helper drawing functions
+func (ui *UIPage) drawGlowText(screen *ebiten.Image, txt string, x, y int, clr color.RGBA, glowIntensity float64) {
 	if glowIntensity > 1.0 {
-		glowColor := color.RGBA{clr.R, clr.G, clr.B, uint8(float64(clr.A) * 0.4)}
-		for _, offset := range offsets {
-			for scale := 1; scale <= int(glowIntensity); scale++ {
-				dx := offset.dx * scale * 2
-				dy := offset.dy * scale * 2
-				// Draw multiple times for "larger" font effect
-				text.Draw(screen, txt, basicfont.Face7x13, x+dx, y+dy+15, glowColor)
-				text.Draw(screen, txt, basicfont.Face7x13, x+dx+1, y+dy+15, glowColor)
-				text.Draw(screen, txt, basicfont.Face7x13, x+dx, y+dy+16, glowColor)
-				text.Draw(screen, txt, basicfont.Face7x13, x+dx+1, y+dy+16, glowColor)
+		glowColor := color.RGBA{clr.R, clr.G, clr.B, uint8(float64(clr.A) * 0.3)}
+		glowRadius := int(glowIntensity)
+		for dx := -glowRadius; dx <= glowRadius; dx++ {
+			for dy := -glowRadius; dy <= glowRadius; dy++ {
+				if dx != 0 || dy != 0 {
+					distance := math.Sqrt(float64(dx*dx + dy*dy))
+					if distance <= float64(glowRadius) {
+						alpha := uint8(float64(glowColor.A) * (1.0 - distance/float64(glowRadius)))
+						fadeColor := color.RGBA{glowColor.R, glowColor.G, glowColor.B, alpha}
+						text.Draw(screen, txt, basicfont.Face7x13, x+dx, y+dy+13, fadeColor)
+					}
+				}
 			}
 		}
 	}
 	
-	// Main text (draw multiple times for thickness/size)
-	text.Draw(screen, txt, basicfont.Face7x13, x, y+15, clr)
-	text.Draw(screen, txt, basicfont.Face7x13, x+1, y+15, clr)
-	text.Draw(screen, txt, basicfont.Face7x13, x, y+16, clr)
-	text.Draw(screen, txt, basicfont.Face7x13, x+1, y+16, clr)
+	text.Draw(screen, txt, basicfont.Face7x13, x, y+13, clr)
 }
 
-func (ui *UIPage) drawInstructions(screen *ebiten.Image) {
-	instructions := []string{
-		"Arrow Keys: Navigate Menu",
-		"Enter: Select Option",
-		"Experience the Cursed Energy!",
+func (ui *UIPage) drawHexagon(screen *ebiten.Image, centerX, centerY, size, rotation float64, clr color.RGBA) {
+	points := make([]float32, 12)
+	for i := 0; i < 6; i++ {
+		angle := rotation + float64(i)*math.Pi/3
+		x := centerX + size*math.Cos(angle)
+		y := centerY + size*math.Sin(angle)
+		points[i*2] = float32(x)
+		points[i*2+1] = float32(y)
 	}
 	
-	startY := screenHeight - 120
-	for i, instruction := range instructions {
-		x := screenWidth/2 - len(instruction)*8
-		y := startY + i*30
+	// Draw hexagon outline
+	for i := 0; i < 6; i++ {
+		next := (i + 1) % 6
+		vector.StrokeLine(screen, points[i*2], points[i*2+1], 
+			points[next*2], points[next*2+1], 2, clr, false)
+	}
+}
+
+func (ui *UIPage) drawDiamond(screen *ebiten.Image, centerX, centerY, size, rotation float64, clr color.RGBA) {
+	halfSize := float32(size / 2)
+	cosR := float32(math.Cos(rotation))
+	sinR := float32(math.Sin(rotation))
+	
+	// Diamond vertices
+	vertices := []struct{ x, y float32 }{
+		{0, -halfSize},  // Top
+		{halfSize, 0},   // Right
+		{0, halfSize},   // Bottom
+		{-halfSize, 0},  // Left
+	}
+	
+	// Rotate and draw diamond
+	for i := 0; i < 4; i++ {
+		next := (i + 1) % 4
 		
-		instrColor := color.RGBA{120, 120, 160, 180}
-		if i == 2 { // Special color for the last line
-			instrColor = color.RGBA{138, 43, 226, 180}
-		}
+		// Rotate current vertex
+		x1 := vertices[i].x*cosR - vertices[i].y*sinR + float32(centerX)
+		y1 := vertices[i].x*sinR + vertices[i].y*cosR + float32(centerY)
 		
-		text.Draw(screen, instruction, basicfont.Face7x13, x, y, instrColor)
+		// Rotate next vertex
+		x2 := vertices[next].x*cosR - vertices[next].y*sinR + float32(centerX)
+		y2 := vertices[next].x*sinR + vertices[next].y*cosR + float32(centerY)
+		
+		vector.StrokeLine(screen, x1, y1, x2, y2, 1.5, clr, false)
+	}
+}
+
+func (ui *UIPage) drawCross(screen *ebiten.Image, centerX, centerY, size, rotation float64, clr color.RGBA) {
+	halfSize := float32(size / 2)
+	cosR := float32(math.Cos(rotation))
+	sinR := float32(math.Sin(rotation))
+	
+	cx := float32(centerX)
+	cy := float32(centerY)
+	
+	// Horizontal line
+	x1 := -halfSize*cosR + cx
+	y1 := -halfSize*sinR + cy
+	x2 := halfSize*cosR + cx
+	y2 := halfSize*sinR + cy
+	vector.StrokeLine(screen, x1, y1, x2, y2, 2, clr, false)
+	
+	// Vertical line
+	x3 := halfSize*sinR + cx
+	y3 := -halfSize*cosR + cy
+	x4 := -halfSize*sinR + cx
+	y4 := halfSize*cosR + cy
+	vector.StrokeLine(screen, x3, y3, x4, y4, 2, clr, false)
+}
+
+func (ui *UIPage) drawModernArrow(screen *ebiten.Image, x, y float32, clr color.RGBA) {
+	// Modern triangular arrow indicator
+	arrowSize := float32(12)
+	
+	// Triangle points
+	x1 := x
+	y1 := y - arrowSize/2
+	x2 := x
+	y2 := y + arrowSize/2
+	x3 := x + arrowSize
+	y3 := y
+	
+	// Draw filled triangle
+	// Since we don't have a direct filled triangle function, we'll use lines
+	vector.StrokeLine(screen, x1, y1, x2, y2, 2, clr, false)
+	vector.StrokeLine(screen, x1, y1, x3, y3, 2, clr, false)
+	vector.StrokeLine(screen, x2, y2, x3, y3, 2, clr, false)
+	
+	// Add inner fill lines
+	for i := 0; i < int(arrowSize); i++ {
+		progress := float32(i) / arrowSize
+		startY := y1 + (y2-y1)*progress
+		endX := x + arrowSize*progress
+		vector.StrokeLine(screen, x, startY, endX, y, 1, clr, false)
 	}
 }
 
@@ -876,105 +758,58 @@ func (ui *UIPage) GetSelectedOption() int {
 
 // IsEnterPressed checks if enter key was just pressed
 func (ui *UIPage) IsEnterPressed() bool {
-	return inpututil.IsKeyJustPressed(ebiten.KeyEnter)
+	return inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace)
+}
+
+// SetImages allows setting the images/gifs for the UI
+func (ui *UIPage) SetImages(logo, character, background *ebiten.Image) {
+	ui.logoImage = logo
+	ui.characterGif = character
+	ui.backgroundTexture = background
 }
 
 /*
-IMAGE/GIF PLACEMENT GUIDE:
-========================
+Enhanced Integration Example:
 
-1. FULL BACKGROUND IMAGE/GIF:
-   - Position: (0, 0)
-   - Size: 1200x800 (full screen)
-   - Place in drawCleanBackground() function
-   - Example: screen.DrawImage(backgroundImg, &ebiten.DrawImageOptions{})
-
-2. LEFT CHARACTER IMAGE/GIF:
-   - Position: (50, 200)  
-   - Size: 300x400
-   - Good for: Gojo, Yuji, or other main characters
-   - Place after drawCleanBackground() call
-
-3. RIGHT CHARACTER IMAGE/GIF:
-   - Position: (850, 200)
-   - Size: 300x400  
-   - Good for: Sukuna, Megumi, or villain characters
-   - Place after drawCleanBackground() call
-
-4. SMALLER DECORATIVE IMAGES:
-   - Various positions around the UI
-   - Keep them small to avoid clutter
-   - Recommended size: 64x64 to 128x128
-
-The menu is positioned in the center (400-750 area) so it won't overlap
-with side character images. The title area (top 250px) is clear for 
-background images to show through.
-*/
-
-// Integration example for your game.go:
-/*
 type Game struct {
     menuUI *UIPage
     showMenu bool
-    backgroundImg *ebiten.Image  // Add your background image/gif
-    leftCharImg *ebiten.Image    // Add your left character
-    rightCharImg *ebiten.Image   // Add your right character
-    // ... your existing fields
+    logoImg *ebiten.Image
+    characterGif *ebiten.Image
+    bgTexture *ebiten.Image
 }
 
-func (g *Game) Update() error {
-    if g.showMenu {
-        err := g.menuUI.Update()
-        if err != nil {
-            return err
-        }
-        
-        if g.menuUI.IsEnterPressed() {
-            switch g.menuUI.GetSelectedOption() {
-            case 0: // START GAME
-                g.showMenu = false
-                // Start your game logic
-            case 1: // PAUSE
-                // Pause game logic
-            case 2: // RESUME
-                g.showMenu = false
-                // Resume game logic  
-            case 3: // QUIT
-                return fmt.Errorf("quit game")
-            }
-        }
-        return nil
+func main() {
+    // Load your images/gifs
+    logo, _ := LoadImage("assets/jjk_logo.png")
+    character, _ := LoadGIF("assets/gojo_animation.gif") 
+    bg, _ := LoadImage("assets/cursed_energy_bg.png")
+    
+    game := &Game{
+        menuUI: NewUIPage(),
+        showMenu: true,
+        logoImg: logo,
+        characterGif: character,
+        bgTexture: bg,
     }
     
-    // Your existing game update logic here
-    return nil
+    // Set the images in the UI
+    game.menuUI.SetImages(logo, character, bg)
+    
+    ebiten.SetWindowSize(1200, 800)
+    ebiten.SetWindowTitle("Jujutsu Kaisen Pac-Man")
+    ebiten.RunGame(game)
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-    if g.showMenu {
-        g.menuUI.Draw(screen)
-        
-        // Draw your images after the UI base
-        if g.backgroundImg != nil {
-            op := &ebiten.DrawImageOptions{}
-            screen.DrawImage(g.backgroundImg, op)
-        }
-        
-        if g.leftCharImg != nil {
-            op := &ebiten.DrawImageOptions{}
-            op.GeoM.Translate(50, 200)  // Left character position
-            screen.DrawImage(g.leftCharImg, op)
-        }
-        
-        if g.rightCharImg != nil {
-            op := &ebiten.DrawImageOptions{}
-            op.GeoM.Translate(850, 200)  // Right character position
-            screen.DrawImage(g.rightCharImg, op)
-        }
-        
-        return
-    }
-    
-    // Your existing game draw logic here
-}
+Key Features Added:
+- Modern glassmorphism UI panels
+- Enhanced particle systems with trails
+- Hexagonal UI elements for tech aesthetic
+- Reserved spaces for logo, character GIFs, and background
+- Improved gradients and lighting effects
+- Better input handling (WASD + Arrow keys)
+- Status indicators and decorative elements
+- Responsive design elements
+- Enhanced cursed energy effects
+- Modern selection indicators
 */
