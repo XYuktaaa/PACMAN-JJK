@@ -63,7 +63,7 @@ go run main.go
 ## 📸 Screenshots
 
 ### 🏁 Main Menu  
-![Main Menu](assets/refrence.png)
+![Main Menu](game/assets/refrence.png)
 
 ### 🎮 Gameplay  
 ![Gameplay](screenshots/gameplay.png)
