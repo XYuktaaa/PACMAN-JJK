@@ -365,6 +365,12 @@ func (ui *UIPage) drawCharacterArea(screen *ebiten.Image) {
 		ui.drawGlowText(screen, subText, subTextX, subTextY, 
 			color.RGBA{100, 100, 150, 100}, 0.8)
 	}
+	if ui.characterGif != nil {
+    op := &ebiten.DrawImageOptions{}
+    op.GeoM.Translate(float64(charAreaX), float64(charAreaY))
+    screen.DrawImage(ui.characterGif, op)
+}
+
 }
 
 func (ui *UIPage) drawModernTitle(screen *ebiten.Image) {

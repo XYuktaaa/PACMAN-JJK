@@ -6,6 +6,7 @@ import (
     "fmt"
     "image/color"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"log"
     
 )
 
@@ -296,7 +297,13 @@ func (g *Game) resetGhosts() {
     g.powerPelletTimer = 0
 }
 func (g *Game) resetGame() {
-    g.Player.Score = 0
+    //g.Player.Score = 0
+    if g.Player != nil {
+        g.Player.Score = 0
+        g.resetPlayerPosition()
+    } else {
+        log.Println("⚠️ Warning: g.Player is nil during resetGame")
+    }
     g.lives = 3
     g.resetPlayerPosition()
     g.resetGhosts()
