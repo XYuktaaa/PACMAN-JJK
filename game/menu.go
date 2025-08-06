@@ -1,3 +1,5 @@
+
+
 package main
 
 import (
@@ -5,9 +7,9 @@ import (
 	"math"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"golang.org/x/image/font/basicfont"
+    "github.com/hajimehoshi/ebiten/v2/text"
 )
 
 const (
@@ -36,9 +38,15 @@ type UIPage struct {
 	backgroundParticles []BackgroundParticle
 	hexagons           []HexagonElement
 	transitionOffset    float64
-	logoImage          *ebiten.Image  // Space for logo image
-	characterGif       *ebiten.Image  // Space for character GIF
-	backgroundTexture  *ebiten.Image  // Space for background texture
+	logoImage          *ebiten.Image
+	characterGif       *ebiten.Image  
+	bgImage            *ebiten.Image
+	
+	// Fixed GIF handling
+	gifFrames          []*ebiten.Image
+	frameIndex         int
+	frameTicker        int
+	frameDelay         int // frames to wait before switching
 }
 
 type CursedEnergyParticle struct {
@@ -84,6 +92,7 @@ func NewUIPage() *UIPage {
 		cursedEnergy:      make([]CursedEnergyParticle, 80),
 		backgroundParticles: make([]BackgroundParticle, 60),
 		hexagons:          make([]HexagonElement, 12),
+		frameDelay:        8, // Slower GIF animation (8 ticks = ~133ms at 60fps)
 	}
 	
 	// Initialize enhanced cursed energy particles with trails
@@ -199,12 +208,21 @@ func (ui *UIPage) Update() error {
 		h.rotation += h.rotSpeed
 		h.alpha = 0.2 + 0.3*math.Sin(ui.animationTime*1.2+h.pulsePhase)
 	}
+
+	// Fixed GIF frame updating
+	if len(ui.gifFrames) > 0 {
+		ui.frameTicker++
+		if ui.frameTicker >= ui.frameDelay {
+			ui.frameIndex = (ui.frameIndex + 1) % len(ui.gifFrames)
+			ui.frameTicker = 0
+		}
+	}
 	
 	return nil
 }
 
 func (ui *UIPage) Draw(screen *ebiten.Image) {
-	// Draw modern gradient background
+	// Draw modern gradient background first
 	ui.drawModernBackground(screen)
 	
 	// Draw background particles
@@ -216,7 +234,7 @@ func (ui *UIPage) Draw(screen *ebiten.Image) {
 	// Draw cursed energy with trails
 	ui.drawEnhancedCursedEnergy(screen)
 	
-	// Draw character area (reserved for GIFs/images)
+	// Draw character area with GIF
 	ui.drawCharacterArea(screen)
 	
 	// Draw modern title with effects
@@ -236,7 +254,36 @@ func (ui *UIPage) Draw(screen *ebiten.Image) {
 }
 
 func (ui *UIPage) drawModernBackground(screen *ebiten.Image) {
-	// Create a sophisticated gradient background
+	// First, draw the background image if available
+	if ui.bgImage != nil {
+		// Calculate scaling to fit screen while maintaining aspect ratio
+		imgBounds := ui.bgImage.Bounds()
+		imgWidth := float64(imgBounds.Dx())
+		imgHeight := float64(imgBounds.Dy())
+		
+		scaleX := float64(screenWidth) / imgWidth
+		scaleY := float64(screenHeight) / imgHeight
+		
+		// Use the larger scale to ensure full coverage
+		scale := math.Max(scaleX, scaleY)
+		
+		// Calculate centered position
+		scaledWidth := imgWidth * scale
+		scaledHeight := imgHeight * scale
+		offsetX := (float64(screenWidth) - scaledWidth) / 2
+		offsetY := (float64(screenHeight) - scaledHeight) / 2
+		
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(scale, scale)
+		op.GeoM.Translate(offsetX, offsetY)
+		
+		// Add some transparency to blend with gradient
+		op.ColorM.Scale(1, 1, 1, 0.7)
+		
+		screen.DrawImage(ui.bgImage, op)
+	}
+	
+	// Create a sophisticated gradient overlay
 	for y := 0; y < screenHeight; y++ {
 		progress := float64(y) / float64(screenHeight)
 		
@@ -252,13 +299,22 @@ func (ui *UIPage) drawModernBackground(screen *ebiten.Image) {
 		waveOffset := math.Sin(float64(y)*0.01 + ui.animationTime*0.5) * 5
 		r = uint8(math.Max(0, math.Min(255, float64(r)+waveOffset)))
 		
+		// Reduce alpha if background image exists
+		alpha := uint8(255)
+		if ui.bgImage != nil {
+			alpha = 100 // More transparent overlay when background exists
+		}
+		
 		vector.DrawFilledRect(screen, 0, float32(y), screenWidth, 1, 
-			color.RGBA{r, g, b, 255}, false)
+			color.RGBA{r, g, b, alpha}, false)
 	}
 	
 	// Add subtle scan lines for modern effect
 	for y := 0; y < screenHeight; y += 4 {
 		alpha := uint8(20 + 10*math.Sin(ui.animationTime*2+float64(y)*0.1))
+		if ui.bgImage != nil {
+			alpha /= 2 // Reduce scan line intensity with background
+		}
 		vector.DrawFilledRect(screen, 0, float32(y), screenWidth, 1, 
 			color.RGBA{100, 150, 255, alpha}, false)
 	}
@@ -329,30 +385,60 @@ func (ui *UIPage) drawEnhancedCursedEnergy(screen *ebiten.Image) {
 }
 
 func (ui *UIPage) drawCharacterArea(screen *ebiten.Image) {
-	// Reserved area for character GIF/image (top-right)
+	// Character area dimensions and position
 	charAreaX := float32(screenWidth - 300)
 	charAreaY := float32(50)
 	charAreaWidth := float32(250)
 	charAreaHeight := float32(250)
 	
-	// Draw placeholder frame with modern styling
-	frameColor := color.RGBA{100, 150, 255, 80}
-	vector.StrokeRect(screen, charAreaX, charAreaY, charAreaWidth, charAreaHeight, 3, frameColor, false)
-	
-	// Add corner accents
-	cornerSize := float32(20)
-	accentColor := color.RGBA{255, 215, 0, 200}
-	
-	// Top-left corner
-	vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, cornerSize, 3, accentColor, false)
-	vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, 3, cornerSize, accentColor, false)
-	
-	// Top-right corner
-	vector.DrawFilledRect(screen, charAreaX+charAreaWidth-cornerSize+2, charAreaY-2, cornerSize, 3, accentColor, false)
-	vector.DrawFilledRect(screen, charAreaX+charAreaWidth-1, charAreaY-2, 3, cornerSize, accentColor, false)
-	
-	// Placeholder text
-	if ui.characterGif == nil {
+	// Draw the GIF if available
+	if len(ui.gifFrames) > 0 && ui.gifFrames[ui.frameIndex] != nil {
+		currentFrame := ui.gifFrames[ui.frameIndex]
+		
+		// Get frame dimensions
+		frameBounds := currentFrame.Bounds()
+		frameWidth := float64(frameBounds.Dx())
+		frameHeight := float64(frameBounds.Dy())
+		
+		// Calculate scaling to fit within character area
+		maxWidth := float64(charAreaWidth - 20)  // Leave 10px margin on each side
+		maxHeight := float64(charAreaHeight - 20)
+		
+		scaleX := maxWidth / frameWidth
+		scaleY := maxHeight / frameHeight
+		
+		// Use the smaller scale to ensure it fits completely
+		scale := math.Min(scaleX, scaleY)
+		
+		// Calculate centered position within the character area
+		scaledWidth := frameWidth * scale
+		scaledHeight := frameHeight * scale
+		offsetX := float64(charAreaX) + (float64(charAreaWidth)-scaledWidth)/2
+		offsetY := float64(charAreaY) + (float64(charAreaHeight)-scaledHeight)/2
+		
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(scale, scale)
+		op.GeoM.Translate(offsetX, offsetY)
+		
+		screen.DrawImage(currentFrame, op)
+	} else {
+		// Draw placeholder frame with modern styling
+		frameColor := color.RGBA{100, 150, 255, 80}
+		vector.StrokeRect(screen, charAreaX, charAreaY, charAreaWidth, charAreaHeight, 3, frameColor, false)
+		
+		// Add corner accents
+		cornerSize := float32(20)
+		accentColor := color.RGBA{255, 215, 0, 200}
+		
+		// Top-left corner
+		vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, cornerSize, 3, accentColor, false)
+		vector.DrawFilledRect(screen, charAreaX-2, charAreaY-2, 3, cornerSize, accentColor, false)
+		
+		// Top-right corner
+		vector.DrawFilledRect(screen, charAreaX+charAreaWidth-cornerSize+2, charAreaY-2, cornerSize, 3, accentColor, false)
+		vector.DrawFilledRect(screen, charAreaX+charAreaWidth-1, charAreaY-2, 3, cornerSize, accentColor, false)
+		
+		// Placeholder text
 		placeholderText := "CHARACTER"
 		textX := int(charAreaX + charAreaWidth/2 - float32(len(placeholderText)*4))
 		textY := int(charAreaY + charAreaHeight/2)
@@ -365,12 +451,6 @@ func (ui *UIPage) drawCharacterArea(screen *ebiten.Image) {
 		ui.drawGlowText(screen, subText, subTextX, subTextY, 
 			color.RGBA{100, 100, 150, 100}, 0.8)
 	}
-	if ui.characterGif != nil {
-    op := &ebiten.DrawImageOptions{}
-    op.GeoM.Translate(float64(charAreaX), float64(charAreaY))
-    screen.DrawImage(ui.characterGif, op)
-}
-
 }
 
 func (ui *UIPage) drawModernTitle(screen *ebiten.Image) {
@@ -405,12 +485,40 @@ func (ui *UIPage) drawModernTitle(screen *ebiten.Image) {
 	ui.drawGlowText(screen, subtitle, subtitleX, subtitleY, 
 		color.RGBA{150, 200, 255, 255}, 2.0)
 	
-	// Logo area (top-left)
+	// Logo area (top-left) with proper scaling
+	ui.drawLogoArea(screen)
+}
+
+func (ui *UIPage) drawLogoArea(screen *ebiten.Image) {
 	logoAreaX := float32(50)
 	logoAreaY := float32(50)
 	logoSize := float32(80)
 	
-	if ui.logoImage == nil {
+	if ui.logoImage != nil {
+		// Get logo dimensions
+		logoBounds := ui.logoImage.Bounds()
+		logoWidth := float64(logoBounds.Dx())
+		logoHeight := float64(logoBounds.Dy())
+		
+		// Calculate scaling to fit within logo area
+		scaleX := float64(logoSize) / logoWidth
+		scaleY := float64(logoSize) / logoHeight
+		
+		// Use the smaller scale to maintain aspect ratio
+		scale := math.Min(scaleX, scaleY)
+		
+		// Calculate centered position
+		scaledWidth := logoWidth * scale
+		scaledHeight := logoHeight * scale
+		offsetX := float64(logoAreaX) + (float64(logoSize)-scaledWidth)/2
+		offsetY := float64(logoAreaY) + (float64(logoSize)-scaledHeight)/2
+		
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(scale, scale)
+		op.GeoM.Translate(offsetX, offsetY)
+		
+		screen.DrawImage(ui.logoImage, op)
+	} else {
 		// Placeholder logo frame
 		logoColor := color.RGBA{255, 215, 0, 150}
 		vector.StrokeRect(screen, logoAreaX, logoAreaY, logoSize, logoSize, 2, logoColor, false)
@@ -490,7 +598,7 @@ func (ui *UIPage) drawModernPacman(screen *ebiten.Image) {
 	auraLayers := 3
 	for layer := 0; layer < auraLayers; layer++ {
 		layerSize := pacmanSize + float32(layer*15) + float32(20*ui.glowIntensity)
-		layerAlpha := uint8((60) /float64 (layer + 1) * ui.glowIntensity)
+		layerAlpha := uint8(float64(60) / float64(layer + 1) * ui.glowIntensity)
 		auraColor := color.RGBA{148, 0, 211, layerAlpha}
 		
 		vector.DrawFilledCircle(screen, float32(ui.pacmanX), pacmanY, 
@@ -767,55 +875,24 @@ func (ui *UIPage) IsEnterPressed() bool {
 	return inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace)
 }
 
-// SetImages allows setting the images/gifs for the UI
-func (ui *UIPage) SetImages(logo, character, background *ebiten.Image) {
+// SetImages allows setting the images/gifs for the UI with proper error handling
+func (ui *UIPage) SetImages(logo *ebiten.Image, gifFrames []*ebiten.Image, bg *ebiten.Image) {
 	ui.logoImage = logo
-	ui.characterGif = character
-	ui.backgroundTexture = background
+	ui.bgImage = bg
+	
+	// Only set gif frames if they exist and are valid
+	if len(gifFrames) > 0 {
+		// Filter out nil frames
+		validFrames := make([]*ebiten.Image, 0, len(gifFrames))
+		for _, frame := range gifFrames {
+			if frame != nil {
+				validFrames = append(validFrames, frame)
+			}
+		}
+		if len(validFrames) > 0 {
+			ui.gifFrames = validFrames
+			ui.frameIndex = 0
+			ui.frameTicker = 0
+		}
+	}
 }
-
-/*
-Enhanced Integration Example:
-
-type Game struct {
-    menuUI *UIPage
-    showMenu bool
-    logoImg *ebiten.Image
-    characterGif *ebiten.Image
-    bgTexture *ebiten.Image
-}
-
-func main() {
-    // Load your images/gifs
-    logo, _ := LoadImage("assets/jjk_logo.png")
-    character, _ := LoadGIF("assets/gojo_animation.gif") 
-    bg, _ := LoadImage("assets/cursed_energy_bg.png")
-    
-    game := &Game{
-        menuUI: NewUIPage(),
-        showMenu: true,
-        logoImg: logo,
-        characterGif: character,
-        bgTexture: bg,
-    }
-    
-    // Set the images in the UI
-    game.menuUI.SetImages(logo, character, bg)
-    
-    ebiten.SetWindowSize(1200, 800)
-    ebiten.SetWindowTitle("Jujutsu Kaisen Pac-Man")
-    ebiten.RunGame(game)
-}
-
-Key Features Added:
-- Modern glassmorphism UI panels
-- Enhanced particle systems with trails
-- Hexagonal UI elements for tech aesthetic
-- Reserved spaces for logo, character GIFs, and background
-- Improved gradients and lighting effects
-- Better input handling (WASD + Arrow keys)
-- Status indicators and decorative elements
-- Responsive design elements
-- Enhanced cursed energy effects
-- Modern selection indicators
-*/
