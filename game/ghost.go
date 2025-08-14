@@ -1,22 +1,39 @@
-
 package main
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"math"
+	"math/rand"
+	"time"
+	"github.com/hajimehoshi/ebiten/v2"
 	"fmt"
-	
+	// . "./ghostAI"
 )
 
+
+// Constants for game balance
+const (
+	FRIGHT_DURATION = 600 // 10 seconds at 60fps
+	CHASE_DURATION = 1200 // 20 seconds
+	SCATTER_DURATION = 420 // 7 seconds
+	
+	// Ghost house positions
+	GHOST_HOUSE_X = 13
+	GHOST_HOUSE_Y = 13
+	GHOST_HOUSE_EXIT_Y = 11
+)
+
+// GhostMode represents the current state of a ghost
 type GhostMode int
 
 const (
-	Chase GhostMode = iota
-	Scatter
-	Frightened
+	ChaseMode GhostMode = iota
+	ScatterMode
+	FrightenedMode
+	DeadMode
+	InHouseMode
 )
 
+// Ghost represents a ghost entity with advanced AI
 type Ghost struct {
 	X, Y          float64
 	Speed         float64
@@ -31,361 +48,1288 @@ type Ghost struct {
 	PathIndex     int
 	Mode          GhostMode
 	ModeTimer     int
-	ScatterTarget [2]int // Fixed scatter corner for this ghost
+	ScatterTarget [2]int
 	LastTileX     int
 	LastTileY     int
-	MovementSmooth bool
-	TargetUpdateTimer int
-}
-
-func NewGhost(x, y float64, spritePath string, name string, size int) *Ghost {
-	img, _, err := ebitenutil.NewImageFromFile(spritePath)
-	if err != nil {
-		panic(err)
-	}
-
-	// Set scatter corners for each ghost
-	var scatterTarget [2]int
-	switch name {
-	case "jogo":
-		scatterTarget = [2]int{25, 1} // top-right
-	case "sukuna":
-		scatterTarget = [2]int{2, 1}  // top-left
-	case "kenjaku":
-		scatterTarget = [2]int{25, 29} // bottom-right
-	case "mahito":
-		scatterTarget = [2]int{2, 29}  // bottom-left
-	}
-
-	return &Ghost{
-		X:             x,
-		Y:             y,
-		Speed:         1.2,
-		Name:          name,
-		Visible:       true,
-		Image:         img,
-		Direction:     "left",
-		Size:          size,
-		Mode:          Scatter,
-		ModeTimer:     0,
-		ScatterTarget: scatterTarget,
-		LastTileX:     -1,
-		LastTileY:     -1,
-		MovementSmooth: true,
-	}
-}
-
-// Update ghost behavior and movement
-func (g *Ghost) Update(level [][]int, TileSize int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64) {
-	// Update mode timing (simplified - you might want more complex mode switching)
- 	fmt.Printf("Ghost %s: Before update at (%.1f, %.1f)\n", g.Name, g.X, g.Y)
-    
-	g.ModeTimer++
-	g.TargetUpdateTimer++
-	// Only update target every 30 frames (0.5 seconds) to prevent erratic behavior
-    if g.TargetUpdateTimer >= 30 {
-        g.updateTarget(level, playerX, playerY, playerDirection, blinkyX, blinkyY, TileSize)
-        g.TargetUpdateTimer = 0
-    }
-    // Always try to move towards current target
-    g.moveToTarget(level, TileSize)
-	if g.ModeTimer > 1200 { // Switch modes every 20 seconds at 60 FPS
-		if g.Mode == Chase {
-			g.Mode = Scatter
-		} else {
-			g.Mode = Chase
-		}
-		g.ModeTimer = 0
-		g.Path = nil // Clear path when switching modes
-	}
-
-	// Update target based on current mode and ghost type
-	g.updateTarget(level, playerX, playerY, playerDirection, blinkyX, blinkyY, TileSize)
-	fmt.Printf("Ghost %s: Target set to (%d, %d)\n", g.Name, g.TargetX, g.TargetY)
-    
-	// Move towards target
-	g.moveToTarget(level, TileSize)
-	fmt.Printf("Ghost %s: After update at (%.1f, %.1f)\n", g.Name, g.X, g.Y)
-
-}
-
-// Set target tile based on ghost personality and current mode
-func (g *Ghost) updateTarget(level [][]int, playerX, playerY float64, playerDirection string, blinkyX, blinkyY float64, TileSize int) {
-    playerTileX := int(playerX) / TileSize
-    playerTileY := int(playerY) / TileSize
-    
-    // Ensure player tile is within bounds
-    if playerTileX < 0 { playerTileX = 0 }
-    if playerTileX >= len(level[0]) { playerTileX = len(level[0]) - 1 }
-    if playerTileY < 0 { playerTileY = 0 }
-    if playerTileY >= len(level) { playerTileY = len(level) - 1 }
-
-    if g.Mode == Scatter {
-        // Safe scatter corners
-        switch g.Name {
-        case "jogo":
-            g.TargetX = len(level[0]) - 2  // Top right corner
-            g.TargetY = 1
-        case "sukuna":
-            g.TargetX = 1   // Top left corner  
-            g.TargetY = 1
-        case "kenjaku":
-            g.TargetX = len(level[0]) - 2  // Bottom right corner
-            g.TargetY = len(level) - 2
-        case "mahito":
-            g.TargetX = 1   // Bottom left corner
-            g.TargetY = len(level) - 2
-        }
-        return
-    }
-
-    if g.Mode == Frightened {
-        // Simple random movement - just pick a nearby empty tile
-        currentTileX := int(g.X) / TileSize
-        currentTileY := int(g.Y) / TileSize
-        
-        // Try to move in a random direction
-        directions := [][2]int{{0,1}, {1,0}, {0,-1}, {-1,0}}
-        for _, dir := range directions {
-            newX := currentTileX + dir[0]*3
-            newY := currentTileY + dir[1]*3
-            
-            // Bounds check
-            if newX >= 0 && newX < len(level[0]) && newY >= 0 && newY < len(level) {
-                if level[newY][newX] != TileWall {
-                    g.TargetX = newX
-                    g.TargetY = newY
-                    return
-                }
-            }
-        }
-        // Fallback - just target current position
-        g.TargetX = currentTileX
-        g.TargetY = currentTileY
-        return
-    }
-
-    // Chase mode - simplified and safe
-    switch g.Name {
-    case "jogo": // Direct chase
-        g.TargetX = playerTileX
-        g.TargetY = playerTileY
-
-    case "sukuna": // Target 2 tiles ahead (reduced from 4 to prevent out of bounds)
-        g.TargetX = playerTileX
-        g.TargetY = playerTileY
-        
-        switch playerDirection {
-        case "left":
-            g.TargetX = playerTileX - 2
-        case "right":
-            g.TargetX = playerTileX + 2
-        case "up":
-            g.TargetY = playerTileY - 2
-        case "down":
-            g.TargetY = playerTileY + 2
-        }
-
-    case "kenjaku": // Simple chase with slight offset
-        g.TargetX = playerTileX + 1
-        g.TargetY = playerTileY + 1
-
-    case "mahito": // Chase with distance check
-        currentTileX := int(g.X) / TileSize
-        currentTileY := int(g.Y) / TileSize
-        distance := abs(playerTileX-currentTileX) + abs(playerTileY-currentTileY)
-        
-        if distance > 8 {
-            g.TargetX = playerTileX
-            g.TargetY = playerTileY
-        } else {
-            g.TargetX = 1
-            g.TargetY = len(level) - 2
-        }
-    }
-
-    // CRITICAL: Ensure target is always within bounds
-    if g.TargetX < 0 { g.TargetX = 0 }
-    if g.TargetX >= len(level[0]) { g.TargetX = len(level[0]) - 1 }
-    if g.TargetY < 0 { g.TargetY = 0 }
-    if g.TargetY >= len(level) { g.TargetY = len(level) - 1 }
-    
-    // If target is a wall, default to player position
-    if level[g.TargetY][g.TargetX] == TileWall {
-        g.TargetX = playerTileX
-        g.TargetY = playerTileY
-    }
-}
-// Add this helper function to your ghost.go:
-func (g *Ghost) findNearestEmptySpace(level [][]int) {
-    for radius := 1; radius < 10; radius++ {
-        for dx := -radius; dx <= radius; dx++ {
-            for dy := -radius; dy <= radius; dy++ {
-                newX := g.TargetX + dx
-                newY := g.TargetY + dy
-                
-                if newY >= 0 && newY < len(level) && newX >= 0 && newX < len(level[0]) {
-                    if level[newY][newX] == TileEmpty || level[newY][newX] == TilePellet {
-                        g.TargetX = newX
-                        g.TargetY = newY
-                        return
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Add this helper function too:
-func abs(x int) int {
-    if x < 0 {
-        return -x
-    }
-    return x
-}
-// Improved movement with smoother pathfinding
-func (g *Ghost) moveToTarget(level [][]int, TileSize int) {
-	currentTileX := int(g.X) / TileSize
-	currentTileY := int(g.Y) / TileSize
-	fmt.Printf("Ghost %s: moveToTarget called, current tile (%d,%d), target (%d,%d)\n", 
-               g.Name, currentTileX, currentTileY, g.TargetX, g.TargetY)
-	// Only recalculate path if we've moved to a new tile or don't have a path
-	// if g.Path == nil || g.PathIndex >= len(g.Path) || 
-	//    currentTileX != g.LastTileX || currentTileY != g.LastTileY {
-if g.Path == nil || g.PathIndex >= len(g.Path) {
-		
-		path := findPath(level, currentTileX, currentTileY, g.TargetX, g.TargetY)
-		fmt.Printf("Ghost %s: findPath returned %d nodes\n", g.Name, len(path))
-		if len(path) > 1 {
-			g.Path = path
-			g.PathIndex = 1 // Skip current position
-			g.LastTileX = currentTileX
-			g.LastTileY = currentTileY
-			fmt.Printf("Ghost %s: Path set, next node (%d,%d)\n", g.Name, path[1].X, path[1].Y)
-		}else {
-            fmt.Printf("Ghost %s: No valid path found!\n", g.Name)
-        }
-	}
-
-	// Follow the path if we have one
-	if g.Path != nil && g.PathIndex < len(g.Path) {
-		g.followPath(TileSize)
-	}else {
-        fmt.Printf("Ghost %s: No path to follow\n", g.Name)
-    }
-}
-
-// Smooth movement along the calculated path
-func (g *Ghost) followPath(TileSize int) {
-	if g.PathIndex >= len(g.Path) {
-    	g.Path=nil
-		return
-	}
-
-	next := g.Path[g.PathIndex]
+	// MovementSmooth bool
 	
-	// Calculate target pixel position (center of tile)
-	targetX := float64(next.X*TileSize) + float64(TileSize)/2 - float64(g.Size)/2
-	targetY := float64(next.Y*TileSize) + float64(TileSize)/2 - float64(g.Size)/2
+	// Advanced AI properties
+	GhostType        string        // "blinky", "pinky", "inky", "clyde"
+	BaseSpeed        float64       // Original speed for mode calculations
+	FrightTimer      int           // Frames remaining in frightened mode
+	ScatterTimer     int           // Frames remaining in scatter mode
+	ChaseTimer       int           // Frames remaining in chase mode
+	ReleaseTimer     int           // Frames until release from house
+	PersonalityMode  int           // Counter for personality behaviors
+	CruiseElroyMode  int           // Blinky's speed boost level (0, 1, 2)
+	PreviousDirection string       // For avoiding reverse unless forced
+	StuckCounter     int           // Detect when ghost is stuck
+	LastUpdate       time.Time     // For timing calculations
+	
+	// Additional production features
+	LastPosition     [2]int        // For stuck detection
+	// drawDebugInfo    bool          // Debug visualization toggle
+	// soundEnabled     bool          // Audio trigger toggle
+	//networkSync      bool          // Network synchronization flag
+	//difficultyLevel  int           // Current difficulty level
+}
 
-	// Calculate movement vector
-	dx := targetX - g.X
-	dy := targetY - g.Y
-	distance := math.Hypot(dx, dy)
 
-	// Update direction for animation
-	if math.Abs(dx) > math.Abs(dy) {
+// Ghost manager for coordinated AI behavior
+type GhostManager struct {
+	ghosts []*Ghost
+	gameState *GameStateStruct
+	globalModeTimer int
+	waveNumber int // For scatter/chase wave patterns
+}
+
+//NewGhostManager creates a coordinated ghost management system
+func NewGhostManager(gameState *GameStateStruct) *GhostManager {
+	return &GhostManager{
+		ghosts: make([]*Ghost, 0),
+		gameState: gameState,
+		globalModeTimer: 0,
+		waveNumber: 0,
+	}
+}
+
+// AddGhost adds a ghost to the manager
+func (gm *GhostManager) AddGhost(ghost *Ghost) {
+	gm.ghosts = append(gm.ghosts, ghost)
+	// gm.gameState.Ghosts = gm.ghosts
+}
+
+// UpdateAll updates all ghosts with coordinated behavior
+func (gm *GhostManager) UpdateAll() {
+	gm.globalModeTimer++
+	gm.handleGlobalModeChanges()
+	
+	for _, ghost := range gm.ghosts {
+		ghost.Update(gm.gameState)
+	}
+}
+
+// Handle global mode changes (scatter/chase waves)
+func (gm *GhostManager) handleGlobalModeChanges() {
+	// Classic Pacman wave pattern
+	wavePattern := []struct{
+		duration int
+		mode GhostMode
+	}{
+		{420, ScatterMode},   // 7 seconds scatter
+		{1200, ChaseMode},    // 20 seconds chase
+		{420, ScatterMode},   // 7 seconds scatter
+		{1200, ChaseMode},    // 20 seconds chase
+		{300, ScatterMode},   // 5 seconds scatter
+		{1200, ChaseMode},    // 20 seconds chase
+		{300, ScatterMode},   // 5 seconds scatter
+		{-1, ChaseMode},      // Indefinite chase
+	}
+	
+	if gm.waveNumber < len(wavePattern) {
+		wave := wavePattern[gm.waveNumber]
+		if wave.duration > 0 && gm.globalModeTimer >= wave.duration {
+			gm.advanceWave()
+		}
+	}
+}
+
+func (gm *GhostManager) advanceWave() {
+	gm.waveNumber++
+	gm.globalModeTimer = 0
+	
+	// Update all ghosts to new mode
+for _, ghost := range gm.ghosts {
+		if ghost.Mode != FrightenedMode && ghost.Mode != DeadMode && ghost.Mode != InHouseMode {
+			if gm.waveNumber < 8 {
+				if gm.waveNumber%2 == 0 {
+					ghost.Mode = ScatterMode
+					ghost.ScatterTimer = 420
+				} else {
+					ghost.Mode = ChaseMode
+					ghost.ChaseTimer = 1200
+				}
+			} else {
+				ghost.Mode = ChaseMode
+				ghost.ChaseTimer = -1 // Indefinite
+			}
+			
+			// Force direction reversal on mode change (except first wave)
+			if gm.waveNumber > 0 {
+				ghost.reverseDirection()
+			}
+		}
+	}
+}
+	
+// TriggerFrightMode activates fright mode for all ghosts
+func (gm *GhostManager) TriggerFrightMode() {
+	for _, ghost := range gm.ghosts {
+		ghost.SetFrightened(FRIGHT_DURATION)
+	}
+	gm.gameState.FrightModeActive = true
+}
+
+// CheckCollisions handles all ghost-player collisions
+func (gm *GhostManager) CheckCollisions(playerX, playerY float64) string {
+	for _, ghost := range gm.ghosts {
+		result := ghost.CollideWithPlayer(playerX, playerY)
+		if result != "no_collision" {
+			return result
+		}
+	}
+	return "no_collision"
+}
+
+// NewGhost creates a new ghost with advanced AI capabilities
+func NewGhost(x, y float64, imagePath, ghostType string, size int) *Ghost {
+	// Load image (you'll need to implement this based on your image loading system)
+	var image *ebiten.Image
+    image = loadImage(imagePath) // Implement this function
+	
+	ghost := &Ghost{
+		X:               x,
+		Y:               y,
+		Speed:           1.0,
+		BaseSpeed:       1.0,
+		Image:           image,
+		Direction:       "up",
+		PreviousDirection: "up",
+		Name:            ghostType,
+		GhostType:       ghostType,
+		Visible:         true,
+		Size:            size,
+		Mode:            InHouseMode,
+		PathIndex:       0,
+		LastUpdate:      time.Now(),
+	}
+	// Set ghost-specific properties
+	switch ghostType {
+	case "blinky":
+		ghost.ScatterTarget = [2]int{25, 0}    // Top-right
+		ghost.ReleaseTimer = 0
+		ghost.Mode = ChaseMode
+		ghost.ChaseTimer=1200
+	case "pinky":
+		ghost.ScatterTarget = [2]int{2, 0}     // Top-left
+		ghost.Mode=ChaseMode
+		ghost.ReleaseTimer = 300
+	case "inky":
+		ghost.ScatterTarget = [2]int{25, 30}// Bottom-right
+		ghost.Mode=ChaseMode
+		ghost.ReleaseTimer = 600
+	case "clyde":
+		ghost.ScatterTarget = [2]int{2, 30}    // Bottom-left
+		ghost.ReleaseTimer = 900
+		ghost.Mode=ChaseMode
+	}
+	fmt.Printf("Created ghost %s at (%.1f, %.1f) with speed %.2f\n", 
+		ghostType, x, y, ghost.Speed)
+		return ghost
+}
+
+// Quick test function to verify tile constants
+func TestTileConstants() {
+	fmt.Println("Checking tile constants:")
+	fmt.Printf("TileEmpty = %d\n", TileEmpty)
+	fmt.Printf("TileWall = %d\n", TileWall)
+	fmt.Printf("TilePellet = %d\n", TilePellet)
+	fmt.Printf("TilePowerPellet = %d\n", TilePowerPellet)
+}
+
+// Update handles the main ghost AI logic
+func (g *Ghost) Update(gameState *GameStateStruct) {
+	now := time.Now()
+	// deltaTime := now.Sub(g.LastUpdate).Seconds()
+	g.LastUpdate = now
+
+
+// Debug output (remove this in production)
+	if g.PersonalityMode%60 == 0 { // Print every second
+		pacmanTileX := int(gameState.PacmanX / TileSize)
+		pacmanTileY := int(gameState.PacmanY / TileSize)
+		ghostTileX := int(g.X / TileSize)
+		ghostTileY := int(g.Y / TileSize)
+		
+		fmt.Printf("Ghost %s: Mode=%d, Pos=(%d,%d), Target=(%d,%d), Pacman=(%d,%d)\n",
+			g.GhostType, g.Mode, ghostTileX, ghostTileY, g.TargetX, g.TargetY, pacmanTileX, pacmanTileY)
+	}
+
+	// Performance optimization - only update AI logic periodically
+	// if !g.shouldUpdateAI() {
+	// 	return
+	// }
+
+
+	if g.PersonalityMode%60 == 0 {
+		fmt.Printf("=== GHOST DEBUG %s ===\n", g.GhostType)
+		fmt.Printf("Position: (%.1f, %.1f) -> Tile: (%d, %d)\n", 
+			g.X, g.Y, int(g.X/TileSize), int(g.Y/TileSize))
+		fmt.Printf("Speed: %.2f, Direction: %s\n", g.Speed, g.Direction)
+		fmt.Printf("Mode: %d, Target: (%d, %d)\n", g.Mode, g.TargetX, g.TargetY)
+		fmt.Printf("Pacman: (%.1f, %.1f) -> Tile: (%d, %d)\n", 
+			gameState.PacmanX, gameState.PacmanY, 
+			int(gameState.PacmanX/TileSize), int(gameState.PacmanY/TileSize))
+		
+		// Check what's around the ghost
+		currentTileX := int(g.X / TileSize)
+		currentTileY := int(g.Y / TileSize)
+		fmt.Printf("Surrounding tiles:\n")
+		for dy := -1; dy <= 1; dy++ {
+			for dx := -1; dx <= 1; dx++ {
+				tx := currentTileX + dx
+				ty := currentTileY + dy
+				if ty >= 0 && ty < len(gameState.Level) && tx >= 0 && tx < len(gameState.Level[0]) {
+					fmt.Printf("%d ", gameState.Level[ty][tx])
+				} else {
+					fmt.Printf("X ")
+				}
+			}
+			fmt.Printf("\n")
+		}
+		fmt.Printf("==================\n")
+	}
+	// Update timers
+	g.updateTimers()
+	
+	// Handle stuck state detection and recovery
+	g.handleStuckState(gameState)
+	
+	// Update difficulty scaling
+	g.updateDifficultyScaling(gameState)
+	
+	// Update mode based on timers and game state
+	g.updateMode(gameState)
+	
+	// Update target based on current mode and ghost type
+	g.UpdateTarget(gameState)
+
+		
+	// Test movement in all directions to see what's valid
+	if g.PersonalityMode%120 == 0 { // Every 2 seconds
+		fmt.Printf("Movement test for %s:\n", g.GhostType)
+		directions := []string{"up", "down", "left", "right"}
+		for _, dir := range directions {
+			testX, testY := g.X, g.Y
+			switch dir {
+			case "up":
+				testY -= g.Speed
+			case "down":
+				testY += g.Speed
+			case "left":
+				testX -= g.Speed
+			case "right":
+				testX += g.Speed
+			}
+			
+			valid := g.isValidPosition(gameState, testX, testY)
+			fmt.Printf("  %s: (%.1f,%.1f) -> %v\n", dir, testX, testY, valid)
+		}
+	}
+
+	// Handle screen wrapping (tunnels)
+	g.handleTunnels(gameState)
+	
+	// Check for collisions before moving
+		g.moveToTarget(gameState)
+	
+	
+	// Update personality counter
+	g.PersonalityMode++
+	
+	
+	// // Trigger sound effects for state changes
+	// if g.soundEnabled {
+	// 	g.checkSoundTriggers()
+	// }
+}
+
+// Simplified movement function for debugging
+func (g *Ghost) moveToTargetSimple(gameState *GameStateStruct) {
+	// Very simple movement - just try to move towards target
+	currentTileX := int((g.X + float64(g.Size)/2) / TileSize)
+	currentTileY := int((g.Y + float64(g.Size)/2) / TileSize)
+	
+	fmt.Printf("Ghost %s at tile (%d,%d) targeting (%d,%d)\n", 
+		g.GhostType, currentTileX, currentTileY, g.TargetX, g.TargetY)
+	
+	// Choose direction
+	dx := g.TargetX - currentTileX
+	dy := g.TargetY - currentTileY
+	
+	var moveX, moveY float64 = 0, 0
+	
+	if math.Abs(float64(dx)) > math.Abs(float64(dy)) {
 		if dx > 0 {
+			moveX = g.Speed
 			g.Direction = "right"
 		} else {
+			moveX = -g.Speed
 			g.Direction = "left"
 		}
 	} else {
 		if dy > 0 {
+			moveY = g.Speed
 			g.Direction = "down"
 		} else {
+			moveY = -g.Speed
 			g.Direction = "up"
 		}
 	}
-
-	// Move towards target
-	if distance <= g.Speed {
-		// Snap to target and move to next path node
-		g.X = targetX
-		g.Y = targetY
-		g.PathIndex++
-	} else {
-		// Move smoothly towards target
-		g.X += (dx / distance) * g.Speed
-		g.Y += (dy / distance) * g.Speed
-	}
-}
-
-// Draw ghost with proper scaling and optional direction-based sprite changes
-func (g *Ghost) Draw(screen *ebiten.Image) {
-	if !g.Visible {
+	
+	// Test the move
+	newX := g.X + moveX
+	newY := g.Y + moveY
+	
+	// Simple collision check - just check center point
+	centerX := newX + float64(g.Size)/2
+	centerY := newY + float64(g.Size)/2
+	
+	tileX := int(centerX / TileSize)
+	tileY := int(centerY / TileSize)
+	
+	// Bounds check
+	if tileY < 0 || tileY >= len(gameState.Level) || 
+		tileX < 0 || tileX >= len(gameState.Level[0]) {
+		fmt.Printf("  Move blocked: out of bounds (%d,%d)\n", tileX, tileY)
 		return
 	}
-
-	op := &ebiten.DrawImageOptions{}
-
-	// Scale image to fit ghost size
-	iw, ih := g.Image.Bounds().Dx(), g.Image.Bounds().Dy()
-	scaleX := float64(g.Size) / float64(iw)
-	scaleY := float64(g.Size) / float64(ih)
-	op.GeoM.Scale(scaleX, scaleY)
-
-	// Apply color tint based on mode
-	switch g.Mode {
-	case Frightened:
-		op.ColorM.Scale(0.5, 0.5, 1.0, 1.0) // Blue tint for frightened
-	case Scatter:
-		op.ColorM.Scale(1.0, 1.0, 1.0, 0.8) // Slightly transparent in scatter mode
+	
+	// Wall check
+	if gameState.Level[tileY][tileX] == TileWall {
+		fmt.Printf("  Move blocked: wall at (%d,%d) = %d\n", 
+			tileX, tileY, gameState.Level[tileY][tileX])
+		return
 	}
-
-	op.GeoM.Translate(g.X, g.Y)
-	screen.DrawImage(g.Image, op)
+	
+	// Move is valid
+	g.X = newX
+	g.Y = newY
+	fmt.Printf("  Moved to (%.1f,%.1f)\n", g.X, g.Y)
+}
+// Check what your tile constants are
+func (g *Ghost) debugTileConstants(gameState *GameStateStruct) {
+	// Print some sample tiles to see what values you're using
+	fmt.Println("Sample tile values:")
+	for y := 0; y < min(5, len(gameState.Level)); y++ {
+		for x := 0; x < min(10, len(gameState.Level[0])); x++ {
+			fmt.Printf("%d ", gameState.Level[y][x])
+		}
+		fmt.Println()
+	}
+}
+// Helper function for Go versions that don't have min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
-// Set ghost to frightened mode (when player eats power pellet)
+
+// UpdateTarget sets the ghost's target based on AI behavior
+func (g *Ghost) UpdateTarget(gameState *GameStateStruct) {
+	switch g.Mode {
+	case ChaseMode:
+		g.updateChaseTarget(gameState)
+	case ScatterMode:
+		g.TargetX = g.ScatterTarget[0]
+		g.TargetY = g.ScatterTarget[1]
+		// Debug output
+		fmt.Printf("Ghost %s scatter mode: target=(%d,%d)\n", g.GhostType, g.TargetX, g.TargetY)
+	case FrightenedMode:
+		g.updateFrightenedTarget(gameState)
+	case DeadMode:
+		g.TargetX = GHOST_HOUSE_X
+		g.TargetY = GHOST_HOUSE_Y
+	case InHouseMode:
+		if g.ReleaseTimer <= 0 {
+			g.TargetX = GHOST_HOUSE_X
+			g.TargetY = GHOST_HOUSE_EXIT_Y
+		}
+	}
+	
+	// Ensure target is within bounds
+	g.clampTarget(gameState)
+}
+
+// func loadImage(path string) *ebiten.Image {
+//     img, _, err := ebitenutil.NewImageFromFile(path)
+//     if err != nil {
+//         log.Fatalf("failed to load ghost image %s: %v", path, err)
+//     }
+//     return img
+// }
+
+// Advanced chase AI for each ghost type
+// func (g *Ghost) updateChaseTarget(gameState *GameStateStruct) {
+// 	// Use player center for more accurate targeting
+// 	pacmanTileX := int((gameState.PacmanX + 16) / TileSize) // Assuming player size ~32
+// 	pacmanTileY := int((gameState.PacmanY + 16) / TileSize)
+
+// 	switch g.GhostType {
+// 	case "jogo": // Direct chaser
+// 		g.TargetX = pacmanTileX
+// 		g.TargetY = pacmanTileY
+		
+// 		// Cruise Elroy mode
+// 		if gameState.DotsRemaining < 20 && g.CruiseElroyMode == 0 {
+// 			g.CruiseElroyMode = 1
+// 			g.Speed = g.BaseSpeed * 1.05
+// 		} else if gameState.DotsRemaining < 10 && g.CruiseElroyMode == 1 {
+// 			g.CruiseElroyMode = 2
+// 			g.Speed = g.BaseSpeed * 1.1
+// 		}
+		
+// 	case "sukuna": // Ambush 4 tiles ahead
+// 		targetX, targetY := pacmanTileX, pacmanTileY
+		
+// 		switch gameState.PacmanDirection {
+// 		case "up":
+// 			targetY -= 4
+// 			targetX -= 4 // Original bug behavior
+// 		case "down":
+// 			targetY += 4
+// 		case "left":
+// 			targetX -= 4
+// 		case "right":
+// 			targetX += 4
+// 		}
+		
+	// 	g.TargetX = targetX
+	// 	g.TargetY = targetY
+		
+	// case "kenjaku": // Complex flanking
+	// 	targetX, targetY := pacmanTileX, pacmanTileY
+	// 	switch gameState.PacmanDirection {
+	// 	case "up":
+	// 		targetY -= 2
+	// 	case "down":
+	// 		targetY += 2
+	// 	case "left":
+	// 		targetX -= 2
+	// 	case "right":
+	// 		targetX += 2
+	// 	}
+		
+	// 	// Find jogo for vector calculation
+	// 	var blinky *Ghost
+	// 	for _, ghost := range gameState.Ghosts {
+	// 		if ghost.GhostType == "jogo" {
+	// 			blinky = ghost
+	// 			break
+	// 		}
+	// 	}
+		
+	// 	if blinky != nil {
+	// 		blinkyTileX := int((blinky.X + float64(blinky.Size)/2) / TileSize)
+	// 		blinkyTileY := int((blinky.Y + float64(blinky.Size)/2) / TileSize)
+			
+	// 		vectorX := targetX - blinkyTileX
+	// 		vectorY := targetY - blinkyTileY
+			
+	// 		g.TargetX = targetX + vectorX
+	// 		g.TargetY = targetY + vectorY
+	// 	} else {
+	// 		g.TargetX = targetX
+	// 		g.TargetY = targetY
+	// 	}
+		
+	// case "mahito": // Shy behavior
+	// 	distance := g.getDistance(float64(pacmanTileX), float64(pacmanTileY))
+		
+	// 	if distance > 8 {
+	// 		g.TargetX = pacmanTileX
+	// 		g.TargetY = pacmanTileY
+	// 	} else {
+	// 		g.TargetX = g.ScatterTarget[0]
+// 			g.TargetY = g.ScatterTarget[1]
+// 		}
+// 	}
+// }
+
+
+func (g *Ghost) updateChaseTarget(gameState *GameStateStruct) {
+	// Use player center for more accurate targeting
+	pacmanTileX := int((gameState.PacmanX + 16) / TileSize)
+	pacmanTileY := int((gameState.PacmanY + 16) / TileSize)
+
+	switch g.GhostType {
+	case "jogo": 
+		// Direct chase
+		g.TargetX = pacmanTileX
+		g.TargetY = pacmanTileY
+		fmt.Printf("Ghost jogo chase mode: target=(%d,%d) pacman=(%d,%d)\n", 
+			g.TargetX, g.TargetY, pacmanTileX, pacmanTileY)
+		
+	case "sukuna": 
+		// 2 tiles ahead (simplified)
+		targetX, targetY := pacmanTileX, pacmanTileY
+		switch gameState.PacmanDirection {
+		case "up":
+			targetY -= 2
+		case "down":
+			targetY += 2
+		case "left":
+			targetX -= 2
+		case "right":
+			targetX += 2
+		}
+		g.TargetX = targetX
+		g.TargetY = targetY
+		
+	case "kenjaku": 
+		// Just target pacman for now (simplified)
+		g.TargetX = pacmanTileX
+		g.TargetY = pacmanTileY
+		
+	case "mahito": 
+		// Just target pacman for now (simplified)
+		g.TargetX = pacmanTileX
+		g.TargetY = pacmanTileY
+	}
+}
+
+// Frightened mode target - random movement with bias away from Pacman
+func (g *Ghost) updateFrightenedTarget(gameState *GameStateStruct) {
+	currentTileX := int(g.X / TileSize)
+	currentTileY := int(g.Y / TileSize)
+	
+	// Get valid directions
+	validTargets := make([]Node, 0)
+	directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+	
+	for _, dir := range directions {
+		newX := currentTileX + dir[0]
+		newY := currentTileY + dir[1]
+		
+		// Use the tile-based validation function
+		if g.isValidTilePosition(gameState, newX, newY) {
+			// Bias away from Pacman
+			pacmanDistance := math.Sqrt(math.Pow(float64(newX)-gameState.PacmanX/TileSize, 2) + 
+				math.Pow(float64(newY)-gameState.PacmanY/TileSize, 2))
+			
+			// Add multiple entries for positions further from Pacman
+			weight := int(pacmanDistance) + 1
+			for i := 0; i < weight; i++ {
+				validTargets = append(validTargets, Node{X: newX, Y: newY})
+			}
+		}
+	}
+	
+	if len(validTargets) > 0 {
+		target := validTargets[rand.Intn(len(validTargets))]
+		g.TargetX = target.X
+		g.TargetY = target.Y
+	}
+}
+// Move towards target using pathfinding from ghostAI.go
+func (g *Ghost) moveToTarget(gameState *GameStateStruct) {
+	// Try to move in small steps toward target
+	targetPixelX := float64(g.TargetX * TileSize)
+	targetPixelY := float64(g.TargetY * TileSize)
+	
+	// Calculate direction to target
+	dx := targetPixelX - g.X
+	dy := targetPixelY - g.Y
+	
+	// If very close to target, we're done
+	if math.Abs(dx) < 2 && math.Abs(dy) < 2 {
+		return
+	}
+	
+	// Normalize direction
+	distance := math.Sqrt(dx*dx + dy*dy)
+	if distance == 0 {
+		return
+	}
+	
+	moveX := (dx / distance) * g.Speed
+	moveY := (dy / distance) * g.Speed
+	
+	// Try direct movement first
+	newX := g.X + moveX
+	newY := g.Y + moveY
+	
+	if g.isValidPosition(gameState, newX, newY) {
+		g.X = newX
+		g.Y = newY
+		
+		// Update direction for animation
+		if math.Abs(moveX) > math.Abs(moveY) {
+			if moveX > 0 {
+				g.Direction = "right"
+			} else {
+				g.Direction = "left"
+			}
+		} else {
+			if moveY > 0 {
+				g.Direction = "down"
+			} else {
+				g.Direction = "up"
+			}
+		}
+		return
+	}
+	
+	// If direct movement fails, try axis-aligned movement
+	// Try horizontal first
+	if math.Abs(dx) > math.Abs(dy) {
+		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
+			g.X += g.Speed
+			g.Direction = "right"
+			return
+		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
+			g.X -= g.Speed
+			g.Direction = "left"
+			return
+		}
+	}
+	
+	// Try vertical
+	if dy > 0 && g.isValidPosition(gameState, g.X, g.Y + g.Speed) {
+		g.Y += g.Speed
+		g.Direction = "down"
+		return
+	} else if dy < 0 && g.isValidPosition(gameState, g.X, g.Y - g.Speed) {
+		g.Y -= g.Speed
+		g.Direction = "up"
+		return
+	}
+	
+	// If horizontal failed, try the other horizontal direction
+	if math.Abs(dx) <= math.Abs(dy) {
+		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
+			g.X += g.Speed
+			g.Direction = "right"
+			return
+		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
+			g.X -= g.Speed
+			g.Direction = "left"
+			return
+		}
+	}
+	
+	// Last resort: try any valid direction
+	directions := []struct{
+		name string
+		dx, dy float64
+	}{
+		{"up", 0, -g.Speed},
+		{"down", 0, g.Speed},
+		{"left", -g.Speed, 0},
+		{"right", g.Speed, 0},
+	}
+	
+	for _, dir := range directions {
+		if g.isValidPosition(gameState, g.X + dir.dx, g.Y + dir.dy) {
+			g.X += dir.dx
+			g.Y += dir.dy
+			g.Direction = dir.name
+			return
+		}
+	}
+}
+
+// // Choose random valid direction when pathfinding fails
+// func (g *Ghost) chooseRandomDirection(gameState *GameStateStruct) {
+// 	currentTileX := int(g.X / TILE_SIZE)
+// 	currentTileY := int(g.Y / TILE_SIZE)
+	
+// 	validDirections := []string{}
+// 	directions := []struct{
+// 		name string
+// 		dx, dy int
+// 	}{
+// 		{"up", 0, -1},
+// 		{"down", 0, 1},
+// 		{"left", -1, 0},
+// 		{"right", 1, 0},
+// 	}
+	
+// 	for _, dir := range directions {
+// 		newX := currentTileX + dir.dx
+// 		newY := currentTileY + dir.dy
+		
+// 		if g.isValidPosition(gameState, newX, newY) {
+// 			// Don't reverse unless forced
+// 			if g.getReverseDirection(dir.name) != g.Direction || len(validDirections) == 0 {
+// 				validDirections = append(validDirections, dir.name)
+// 			}
+// 		}
+// 	}
+	
+// 	if len(validDirections) > 0 {
+// 		g.Direction = validDirections[rand.Intn(len(validDirections))]
+		
+// 		// Create a simple path in the chosen direction
+// 		targetX := currentTileX
+// 		targetY := currentTileY
+// 		switch g.Direction {
+// 		case "up":
+// 			targetY--
+// 		case "down":
+// 			targetY++
+// 		case "left":
+// 			targetX--
+// 		case "right":
+// 			targetX++
+// 		}
+		
+// 		g.Path = []Node{
+// 			{X: currentTileX, Y: currentTileY},
+// 			{X: targetX, Y: targetY},
+// 		}
+// 		g.PathIndex = 0
+// 	}
+// }
+
+// Get reverse direction
+func (g *Ghost) getReverseDirection(direction string) string {
+	switch direction {
+	case "up":
+		return "down"
+	case "down":
+		return "up"
+	case "left":
+		return "right"
+	case "right":
+		return "left"
+	default:
+		return ""
+	}
+}
+
+// Follow the calculated path (uses Node from ghostAI.go)
+func (g *Ghost) followPath(gameState *GameStateStruct) {
+	if len(g.Path) == 0 || g.PathIndex >= len(g.Path) {
+		return
+	}
+	
+	// Get next waypoint
+	if g.PathIndex < len(g.Path)-1 {
+		g.PathIndex++
+	}
+	
+	nextNode := g.Path[g.PathIndex]
+	targetPixelX := float64(nextNode.X * TileSize)
+	targetPixelY := float64(nextNode.Y * TileSize)
+	
+	// Move towards next waypoint
+	dx := targetPixelX - g.X
+	dy := targetPixelY - g.Y
+	distance := math.Sqrt(dx*dx + dy*dy)
+	
+	if distance > 1 {
+		// Normalize and apply speed
+		moveX := (dx / distance) * g.Speed
+		moveY := (dy / distance) * g.Speed
+		
+		g.X += moveX
+		g.Y += moveY
+		
+		// Update direction for animation
+		if math.Abs(dx) > math.Abs(dy) {
+			if dx > 0 {
+				g.Direction = "right"
+			} else {
+				g.Direction = "left"
+			}
+		} else {
+			if dy > 0 {
+				g.Direction = "down"
+			} else {
+				g.Direction = "up"
+			}
+		}
+	}
+}
+
+// SetFrightened activates frightened mode
 func (g *Ghost) SetFrightened(duration int) {
-	g.Mode = Frightened
-	g.ModeTimer = -duration // Negative timer to count up to 0
-	g.Path = nil // Clear current path
-	g.Speed = 0.6 // Slower when frightened
+	if g.Mode != DeadMode && g.Mode != InHouseMode {
+		g.Mode = FrightenedMode
+		g.FrightTimer = duration
+		g.Speed = g.BaseSpeed * 0.5
+		
+		// Reverse direction immediately
+		g.reverseDirection()
+	}
 }
 
-// Check if ghost can be eaten (is frightened)
+
+// CanBeEaten checks if ghost can be eaten in current state
 func (g *Ghost) CanBeEaten() bool {
-	return g.Mode == Frightened
+	return g.Mode == FrightenedMode && g.FrightTimer > 60 // Give some warning time
 }
 
+// SetVisible controls ghost visibility
 func (g *Ghost) SetVisible(visible bool) {
 	g.Visible = visible
 }
 
-
-// Reset ghost to normal chase/scatter behavior
+// ResetMode resets ghost to default mode
 func (g *Ghost) ResetMode() {
-	g.Mode = Chase
-	g.ModeTimer = 0
-	g.Speed = 1.2
-	g.Path = nil
-}
-
-// Get current tile position
-func (g *Ghost) GetTilePosition(TileSize int) (int, int) {
-	return int(g.X) / TileSize, int(g.Y) / TileSize
-}
-
-// Check collision with player (circular collision detection)
-func (g *Ghost) CollidesWith(playerX, playerY float64, playerSize int) bool {
-	centerX := g.X + float64(g.Size)/2
-	centerY := g.Y + float64(g.Size)/2
-	playerCenterX := playerX + float64(playerSize)/2
-	playerCenterY := playerY + float64(playerSize)/2
+	switch g.GhostType {
+	case "jogo":
+		g.Mode = ChaseMode
+		g.ChaseTimer = 1200
+	default:
+		g.Mode = ScatterMode
+		g.ScatterTimer = 420 // 7 seconds
+	}
 	
-	distance := math.Hypot(centerX-playerCenterX, centerY-playerCenterY)
-	return distance < float64(g.Size+playerSize)/3 // Adjust collision sensitivity
+	g.Speed = g.BaseSpeed
+	g.FrightTimer = 0
+	g.CruiseElroyMode = 0
+}
+// CollideWithPlayer handles collision with player
+func (g *Ghost) CollideWithPlayer(playerX, playerY float64) string {
+	// Calculate distance between centers
+	ghostCenterX := g.X + float64(g.Size)/2
+	ghostCenterY := g.Y + float64(g.Size)/2
+	
+	// Assume player is also centered (adjust if needed)
+	playerCenterX := playerX + 16 // Assuming player size ~32, so center at +16
+	playerCenterY := playerY + 16
+	
+	distance := math.Sqrt(math.Pow(ghostCenterX-playerCenterX, 2) + 
+						 math.Pow(ghostCenterY-playerCenterY, 2))
+	
+	// Collision threshold based on combined sizes
+	threshold := float64(g.Size)/2 + 16 // Half ghost size + half player size
+	
+	if distance < threshold {
+		switch g.Mode {
+		case FrightenedMode:
+			if g.CanBeEaten() {
+				g.Mode = DeadMode
+				g.Speed = g.BaseSpeed * 2
+				return "ghost_eaten"
+			}
+		case ChaseMode, ScatterMode:
+			return "player_caught"
+		}
+	}
+	
+	return "no_collision"
 }
 
+// Helper function to get smoother movement
+func (g *Ghost) smoothToGrid() {
+	// Gradually align ghost to grid for smoother movement
+	tileSize := float64(TileSize)
+	
+	// Calculate ideal grid-aligned position
+	idealX := math.Round(g.X/tileSize) * tileSize
+	idealY := math.Round(g.Y/tileSize) * tileSize
+	
+	// Smoothly move towards grid alignment (optional)
+	alignmentSpeed := 0.1
+	if math.Abs(g.X - idealX) < 2 {
+		g.X += (idealX - g.X) * alignmentSpeed
+	}
+	if math.Abs(g.Y - idealY) < 2 {
+		g.Y += (idealY - g.Y) * alignmentSpeed
+	}
+}
+// Compatibility method for old interface
+func (g *Ghost) CollidesWith(playerX, playerY float64, playerSize int) bool {
+	result := g.CollideWithPlayer(playerX, playerY)
+	return result != "no_collision"
+}
+
+// Draw renders the ghost with state-based animations
+func (g *Ghost) Draw(screen *ebiten.Image) {
+	if !g.Visible || g.Image == nil {
+		return
+	}
+	
+	op := &ebiten.DrawImageOptions{}
+	
+	// Flashing effect when fright mode is ending
+	if g.Mode == FrightenedMode && g.FrightTimer < 120 {
+		if (g.FrightTimer/10)%2 == 0 {
+			op.ColorM.Scale(1, 1, 1, 0.7) // Semi-transparent
+		}
+	}
+	
+	// Death animation - darker appearance
+	if g.Mode == DeadMode {
+		op.ColorM.Scale(0.5, 0.5, 0.5, 1)
+	}
+	
+	// drawX := g.X - float64(g.Size/2)
+	// drawY := g.Y - float64(g.Size/2)
+	
+	// op.GeoM.Translate(drawX, drawY)
+	// Position
+ // Scale factor to make image exactly g.Size × g.Size
+    scaleX := float64(g.Size) / float64(g.Image.Bounds().Dx())
+    scaleY := float64(g.Size) / float64(g.Image.Bounds().Dy())
+    op.GeoM.Scale(scaleX, scaleY)
+
+    // Position after scaling
+    op.GeoM.Translate(g.X, g.Y)
+	screen.DrawImage(g.Image, op)
+}
+
+// Tunnel handling for screen wrapping
+func (g *Ghost) handleTunnels(gameState *GameStateStruct) {
+	screenWidth := float64(len(gameState.Level[0]) * TileSize)
+	ghostSize := float64(g.Size)
+	
+	// Left tunnel - ghost completely off screen
+	if g.X + ghostSize < 0 {
+		g.X = screenWidth
+	} 
+	// Right tunnel - ghost completely off screen
+	if g.X > screenWidth {
+		g.X = -ghostSize
+	}
+}
+// Collision detection with walls and boundaries
+func (g *Ghost) checkCollisions(gameState *GameStateStruct) bool {
+	nextX := g.X + g.getDirectionVector().X
+	nextY := g.Y + g.getDirectionVector().Y
+	
+	tileX := int(nextX / 16)
+	tileY := int(nextY / 16)
+	
+	if tileY < 0 || tileY >= len(gameState.Level) || 
+		tileX < 0 || tileX >= len(gameState.Level[0]) {
+		return false
+	}
+	
+	return gameState.Level[tileY][tileX] != 1
+}
+
+// Get movement vector for current direction
+func (g *Ghost) getDirectionVector() struct{ X, Y float64 } {
+	switch g.Direction {
+	case "up":
+		return struct{ X, Y float64 }{0, -g.Speed}
+	case "down":
+		return struct{ X, Y float64 }{0, g.Speed}
+	case "left":
+		return struct{ X, Y float64 }{-g.Speed, 0}
+	case "right":
+		return struct{ X, Y float64 }{g.Speed, 0}
+	default:
+		return struct{ X, Y float64 }{0, 0}
+	}
+}
+
+// Advanced stuck detection and recovery
+func (g *Ghost) handleStuckState(gameState *GameStateStruct) {
+	currentTile := [2]int{int(g.X / TileSize), int(g.Y / TileSize)}
+	
+	
+	if g.LastPosition == currentTile {
+		g.StuckCounter++
+	} else {
+		g.StuckCounter = 0
+		g.LastPosition = currentTile
+	}
+	
+	// If stuck for too long, force a new path or random direction
+	if g.StuckCounter > 30 {
+		g.Path = nil // Force new pathfinding
+		g.PathIndex = 0
+		g.StuckCounter = 0
+		
+		// Emergency random direction
+		directions := []string{"up", "down", "left", "right"}
+		g.Direction = directions[rand.Intn(len(directions))]
+	}
+}
+
+
+// Performance optimization - only update AI every few frames
+func (g *Ghost) shouldUpdateAI() bool {
+	return true// Update every 4 frames
+}
+
+// Advanced difficulty scaling
+func (g *Ghost) updateDifficultyScaling(gameState *GameStateStruct) {
+	baseSpeed := 0.8
+	
+	// Increase speed and reduce scatter time as level increases
+	speedMultiplier := 1.0 + (float64(gameState.CurrentLevel-1) * 0.1)
+	g.BaseSpeed = baseSpeed * speedMultiplier
+	
+	if g.Mode != FrightenedMode {
+		g.Speed = g.BaseSpeed
+	}
+	
+	// Reduce fright mode duration on higher levels
+	maxFrightTime := 600 - (gameState.CurrentLevel-1)*30
+	if maxFrightTime < 120 {
+		maxFrightTime = 120
+	}
+	
+	if g.Mode == FrightenedMode && g.FrightTimer > maxFrightTime {
+		g.FrightTimer = maxFrightTime
+	}
+}
+
+// Debug visualization for AI development
+func (g *Ghost) drawAIDebug(screen *ebiten.Image) {
+	// Draw target position
+	// Draw current path
+	// Draw AI state information
+	// This would use your text/debug rendering system
+}
+
+// Sound effect triggers
+func (g *Ghost) triggerSoundEffect(effect string) {
+	// Integration point for your audio system
+	switch effect {
+	case "ghost_eaten":
+		// Play ghost eaten sound
+	case "mode_change":
+		// Play mode change sound
+	case "fright_warning":
+		// Play warning sound when fright mode ending
+	}
+}
+
+// Save/Load ghost state for game persistence
+func (g *Ghost) SaveState() map[string]interface{} {
+	return map[string]interface{}{
+		"x":               g.X,
+		"y":               g.Y,
+		"direction":       g.Direction,
+		"mode":            g.Mode,
+		"frightTimer":     g.FrightTimer,
+		"cruiseElroyMode": g.CruiseElroyMode,
+		"pathIndex":       g.PathIndex,
+	}
+}
+
+func (g *Ghost) LoadState(state map[string]interface{}) {
+	if x, ok := state["x"].(float64); ok {
+		g.X = x
+	}
+	if y, ok := state["y"].(float64); ok {
+		g.Y = y
+	}
+	// ... load other state variables
+}
+
+// Network synchronization for multiplayer
+func (g *Ghost) GetNetworkState() []byte {
+	// Serialize minimal state for network transmission
+	// Return compressed ghost state
+	return nil
+}
+
+func (g *Ghost) SetNetworkState(data []byte) {
+	// Deserialize and apply network state
+}
+
+// Add these fields to Ghost struct
+var lastPosition [2]int
+var drawDebugInfo bool
+
+// Helper functions
+func (g *Ghost) updateTimers() {
+	if g.FrightTimer > 0 {
+		g.FrightTimer--
+	}
+	if g.ScatterTimer > 0 {
+		g.ScatterTimer--
+	}
+	if g.ChaseTimer > 0 {
+		g.ChaseTimer--
+	}
+	if g.ReleaseTimer > 0 {
+		g.ReleaseTimer--
+	}
+}
+
+func (g *Ghost) updateMode(gameState *GameStateStruct) {
+	// Global fright mode overrides individual timers
+	if gameState.FrightModeActive && g.Mode != DeadMode && g.Mode != InHouseMode {
+		if g.Mode != FrightenedMode {
+			g.SetFrightened(600) // 10 seconds
+		}
+		return
+	}
+	
+	// Release from house
+	if g.Mode == InHouseMode && g.ReleaseTimer <= 0 {
+		g.Mode = ScatterMode
+		g.ScatterTimer = 420
+	}
+	
+	// Mode transitions based on timers
+	if g.FrightTimer <= 0 && g.Mode == FrightenedMode {
+		g.Mode = ChaseMode
+		g.ChaseTimer = 1200
+		g.Speed = g.BaseSpeed
+	}
+	
+	if g.ChaseTimer <= 0 && g.Mode == ChaseMode {
+		g.Mode = ScatterMode
+		g.ScatterTimer = 420
+	}
+	
+	if g.ScatterTimer <= 0 && g.Mode == ScatterMode {
+		g.Mode = ChaseMode
+		g.ChaseTimer = 1200
+	}
+}
+
+// func (g *Ghost) smoothMovement(deltaTime float64) {
+// 	// Implement smooth interpolation for movement
+// 	// This helps with visual smoothness between frames
+// }
+func (g *Ghost) isValidPosition(gameState *GameStateStruct, pixelX, pixelY float64) bool {
+	// Only check the center point for now - much more lenient
+	centerX := pixelX + float64(g.Size)/2
+	centerY := pixelY + float64(g.Size)/2
+	
+	tileX := int(centerX / TileSize)
+	tileY := int(centerY / TileSize)
+	
+	// Bounds check
+	if tileY < 0 || tileY >= len(gameState.Level) || 
+	   tileX < 0 || tileX >= len(gameState.Level[0]) {
+		return false
+	}
+	
+	// Only check if center hits a wall
+	return gameState.Level[tileY][tileX] != TileWall
+}
+
+// Helper function for tile-based position checking
+func (g *Ghost) isValidTilePosition(gameState *GameStateStruct, tileX, tileY int) bool {
+	// Convert tile coordinates to pixel coordinates
+	pixelX := float64(tileX * TileSize)
+	pixelY := float64(tileY * TileSize)
+	return g.isValidPosition(gameState, pixelX, pixelY)
+}
+
+func (g *Ghost) isValidPositionTile(gameState *GameStateStruct, x, y int) bool {
+	return g.isValidTilePosition(gameState, x, y)
+}
+func (g *Ghost) clampTarget(gameState *GameStateStruct) {
+	if g.TargetX < 0 {
+		g.TargetX = 0
+	} else if g.TargetX >= len(gameState.Level[0]) {
+		g.TargetX = len(gameState.Level[0]) - 1
+	}
+	
+	if g.TargetY < 0 {
+		g.TargetY = 0
+	} else if g.TargetY >= len(gameState.Level) {
+		g.TargetY = len(gameState.Level) - 1
+	}
+}
+
+func (g *Ghost) predictPacmanPosition(gameState *GameStateStruct, steps int) (int, int) {
+	x := gameState.PacmanX / TileSize
+	y := gameState.PacmanY / TileSize
+	
+	for i := 0; i < steps; i++ {
+		switch gameState.PacmanDirection {
+		case "up":
+			y--
+		case "down":
+			y++
+		case "left":
+			x--
+		case "right":
+			x++
+		}
+		
+		// Clamp to bounds and check for walls
+		tileX := int(math.Max(0, math.Min(float64(len(gameState.Level[0])-1), x)))
+		tileY := int(math.Max(0, math.Min(float64(len(gameState.Level)-1), y)))
+		
+		if gameState.Level[tileY][tileX] == TileWall {
+			break
+		}
+	}
+	
+	return int(x), int(y)
+}
+
+func (g *Ghost) isPacmanCornered(gameState *GameStateStruct) bool {
+	pacmanX := int(gameState.PacmanX / TileSize)
+	pacmanY := int(gameState.PacmanY / TileSize)
+	
+	validMoves := 0
+	directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+	
+	for _, dir := range directions {
+		newX := pacmanX + dir[0]
+		newY := pacmanY + dir[1]
+		if g.isValidTilePosition(gameState, newX, newY) {
+			validMoves++
+		}
+	}
+	
+	return validMoves <= 1
+}
+
+func (g *Ghost) getEscapeRoutes(gameState *GameStateStruct, x, y int) []Node {
+	routes := make([]Node, 0)
+	directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+	
+	for _, dir := range directions {
+		newX := x + dir[0]
+		newY := y + dir[1]
+		if g.isValidTilePosition(gameState, newX, newY) {
+			routes = append(routes, Node{X: newX, Y: newY})
+		}
+	}
+	
+	return routes
+}
+func (g *Ghost) hasDirectPath(gameState *GameStateStruct, targetX, targetY int) bool {
+	currentX := int(g.X / TileSize)
+	currentY := int(g.Y / TileSize)
+	
+	path := findPath(gameState.Level, currentX, currentY, targetX, targetY)
+	return len(path) > 0
+}
+
+func (g *Ghost) getFlankingPositions(gameState *GameStateStruct, targetX, targetY int) []Node {
+	positions := make([]Node, 0)
+	offsets := [][2]int{{-2, -2}, {2, -2}, {-2, 2}, {2, 2}, {-3, 0}, {3, 0}, {0, -3}, {0, 3}}
+	
+	for _, offset := range offsets {
+		newX := targetX + offset[0]
+		newY := targetY + offset[1]
+		if g.isValidTilePosition(gameState, newX, newY) {
+			positions = append(positions, Node{X: newX, Y: newY})
+		}
+	}
+	
+	return positions
+}
+func (g *Ghost) reverseDirection() {
+	switch g.Direction {
+	case "up":
+		g.Direction = "down"
+	case "down":
+		g.Direction = "up"
+	case "left":
+		g.Direction = "right"
+	case "right":
+		g.Direction = "left"
+	}
+	g.PreviousDirection = g.Direction
+}
+
+
+// Helper function to get distance using ghost center
+func (g *Ghost) getDistance(targetX, targetY float64) float64 {
+	ghostCenterX := (g.X + float64(g.Size)/2) / TileSize
+	ghostCenterY := (g.Y + float64(g.Size)/2) / TileSize
+	dx := targetX - ghostCenterX
+	dy := targetY - ghostCenterY
+	return math.Sqrt(dx*dx + dy*dy)
+}

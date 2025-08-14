@@ -7,7 +7,6 @@ import (
     "image/color"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"log"
-    
 )
 
 var glowColor = color.RGBA{255, 50, 50, 255} // bright red center
@@ -22,12 +21,25 @@ const(
     StatePaused
 )
 
+type GameStateStruct struct{
+    PacmanX, PacmanY   float64
+    PacmanDirection    string
+    Level              [][]int
+    DotsRemaining      int
+    PowerPelletActive  bool
+    FrightModeActive   bool
+    GlobalTimer        int
+    Ghosts             []*Ghost
+    CurrentLevel       int
+    GhostManager *GhostManager
+    NewGhostManager *GhostManager
+}
+
 type Game struct{
     Player *Player
     Ghosts []*Ghost
     Pellet []Pellet
     menuUI *UIPage
-    //showMenu bool
     lives    int
     playerStartX float64
     playerStartY float64
@@ -38,38 +50,61 @@ type Game struct{
     logoImg *ebiten.Image
     characterGif *ebiten.Image
     bgTexture *ebiten.Image
+
+    ghostManager *GhostManager
+    gameState *GameStateStruct
+    globalTimer int
 }
 
-const TileSize =32
+const TileSize = 32
+const tileSize=32
 
 func NewGame() *Game {
     playerStartX := float64(1 * TileSize)
     playerStartY := float64(1 * TileSize)
-        g:= &Game{
-        Player: NewPlayer(playerStartX,playerStartY,"assets/player.png"),
+
+    gameState := &GameStateStruct{
+        Level: level,
+        CurrentLevel: 1,
+    }
+
+    g := &Game{
+        Player: NewPlayer(playerStartX, playerStartY, "assets/player.png"),
 		menuUI: NewUIPage(),
         State: StateMenu,
-        lives:  3,
+        lives: 3,
         playerStartX: playerStartX,
         playerStartY: playerStartY,
-        Ghosts: []*Ghost{
+        gameState: gameState,
+        globalTimer: 0,
+    }
+
+    g.ghostManager = NewGhostManager(gameState) 
+    
+	ghosts := []*Ghost{
 		NewGhost(13*TileSize, 13*TileSize, "assets/jogo.png", "jogo", 55),
     	NewGhost(12*TileSize, 13*TileSize, "assets/sakuna.png", "sukuna", 55),    
     	NewGhost(14*TileSize, 13*TileSize, "assets/kenjaku.png", "kenjaku", 55),  
     	NewGhost(13*TileSize, 14*TileSize, "assets/mahito.png", "mahito", 55),
-        },
+	}
 
-
+    // Add ghosts to manager
+    for _, ghost := range ghosts {
+        g.ghostManager.AddGhost(ghost)
     }
+    
+    g.Ghosts = ghosts
 	g.resetGhosts()
 
     InitPellets(level, TileSize)
 	g.countPellets()
-return g
+    return g
 }
 
-
 func (g *Game) Update() error {
+    g.globalTimer++
+    g.updateGameState()
+
     switch g.State {
     case StateMenu:
         return g.updateMenu()
@@ -82,6 +117,20 @@ func (g *Game) Update() error {
     }
     return nil
 }
+
+func (g *Game) updateGameState() {
+    if g.Player != nil && g.gameState != nil {
+        g.gameState.PacmanX = g.Player.X
+        g.gameState.PacmanY = g.Player.Y
+        g.gameState.PacmanDirection = g.Player.Direction
+        g.gameState.DotsRemaining = g.pelletCount
+        g.gameState.PowerPelletActive = g.powerPelletActive
+        g.gameState.FrightModeActive = g.powerPelletActive
+        g.gameState.GlobalTimer = g.globalTimer
+        g.gameState.Ghosts = g.Ghosts
+    }
+}
+
 func (g *Game) updateMenu() error {
     if g.menuUI != nil {
         err := g.menuUI.Update()
@@ -110,24 +159,37 @@ func (g *Game) updateMenu() error {
     return nil
 }
 
-
 func (g *Game) updateGame() error {
     // Handle pause
     if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
         g.State = StatePaused
         return nil
     }
+        // Debug: Print game state occasionally
+    if g.globalTimer%120 == 0 { // Every 2 seconds
+        fmt.Printf("=== GAME DEBUG ===\n")
+        fmt.Printf("Global Timer: %d\n", g.globalTimer)
+        fmt.Printf("Player Position: (%.1f, %.1f)\n", g.Player.X, g.Player.Y)
+        fmt.Printf("Number of ghosts: %d\n", len(g.Ghosts))
+        fmt.Printf("Ghost Manager exists: %v\n", g.ghostManager != nil)
+        
+        for i, ghost := range g.Ghosts {
+            if ghost != nil {
+                fmt.Printf("Ghost %d (%s): (%.1f, %.1f) Speed: %.2f Visible: %v\n", 
+                    i, ghost.GhostType, ghost.X, ghost.Y, ghost.Speed, ghost.Visible)
+            } else {
+                fmt.Printf("Ghost %d: nil\n", i)
+            }
+        }
+        fmt.Printf("=================\n")
+    }
+
+
+
     
     // Update player
     if g.Player != nil {
         g.Player.Update(level, TileSize)
-    }
-    
-    // Get Blinky's position for Inky's AI
-    var blinkyX, blinkyY float64
-    if len(g.Ghosts) > 0 {
-        blinkyX = g.Ghosts[0].X
-        blinkyY = g.Ghosts[0].Y
     }
     
     // Update power pellet timer
@@ -135,59 +197,46 @@ func (g *Game) updateGame() error {
         g.powerPelletTimer--
         if g.powerPelletTimer <= 0 {
             g.powerPelletActive = false
+            g.gameState.FrightModeActive = false
             // Reset all ghosts to normal mode
             for _, ghost := range g.Ghosts {
                 ghost.ResetMode()
             }
         }
     }
-    
-    // Update each ghost
-    // for _, ghost := range g.Ghosts {
-    //     if ghost.Visible {
-    //         ghost.Update(level, TileSize, g.Player.X, g.Player.Y, g.Player.Direction, blinkyX, blinkyY)
-    //     }
-    // }
-    // Update each ghost
-for i, ghost := range g.Ghosts {
-    if ghost.Visible {
-        fmt.Printf("Updating ghost %d (%s) at (%.1f, %.1f), player at (%.1f, %.1f)\n", 
-                   i, ghost.Name, ghost.X, ghost.Y, g.Player.X, g.Player.Y)
-        ghost.Update(level, TileSize, g.Player.X, g.Player.Y, g.Player.Direction, blinkyX, blinkyY)
+    // Update ghosts - try both methods to see which works
+    fmt.Printf("Updating ghosts... Manager: %v, Direct: %d ghosts\n", 
+        g.ghostManager != nil, len(g.Ghosts))
+    // Update ghosts using ghost manager
+    if g.ghostManager != nil {
+        g.ghostManager.UpdateAll()
     }
-}
+
+    // Method 2: Update ghosts directly (for debugging)
+    for i, ghost := range g.Ghosts {
+        if ghost != nil {
+            fmt.Printf("Updating ghost %d (%s)\n", i, ghost.GhostType)
+            ghost.Update(g.gameState)
+        }
+    }
     
-    // Check for collisions between player and ghosts
-    for _, ghost := range g.Ghosts {
-        if ghost.Visible && ghost.CollidesWith(g.Player.X, g.Player.Y, g.Player.Size) {
-            if ghost.CanBeEaten() {
-                // Ghost is frightened, player eats ghost
-                g.Player.Score += 200
-                ghost.SetVisible(false)
-                
-                // Respawn ghost after delay (you might want to add a respawn timer)
-                go func(gh *Ghost) {
-                    // In a real game, you'd use a proper timer system
-                    // For now, just immediately respawn at start position
-                    gh.X = g.playerStartX + float64(TileSize*12) // Ghost starting area
-                    gh.Y = g.playerStartY + float64(TileSize*12)
-                    gh.ResetMode()
-                    gh.SetVisible(true)
-                }(ghost)
-                
-            } else {
-                // Player dies
-                g.lives--
-                g.resetPlayerPosition()
-                
-                if g.lives <= 0 {
-                    g.State = StateGameOver
-                    return nil
-                }
-                
-                // Reset all ghosts to normal mode and positions
-                g.resetGhosts()
+    // Check for collisions using ghost manager
+    if g.ghostManager != nil {
+        result := g.ghostManager.CheckCollisions(g.Player.X, g.Player.Y)
+        switch result {
+        case "ghost_eaten":
+            g.Player.Score += 200
+            // Ghost manager already handles the ghost state change
+        case "player_caught":
+            g.lives--
+            g.resetPlayerPosition()
+            
+            if g.lives <= 0 {
+                g.State = StateGameOver
+                return nil
             }
+            
+            g.resetGhosts()
         }
     }
     
@@ -196,7 +245,6 @@ for i, ghost := range g.Ghosts {
     
     // Check win condition
     if g.pelletCount <= 0 {
-        // Level complete - you could add level progression here
         g.resetGame()
     }
     
@@ -236,11 +284,6 @@ func (g *Game) checkPelletCollection() {
         g.Player.Score += 10
         g.pelletCount--
         
-        // Update player score if it has one
-        if g.Player != nil {
-            g.Player.Score = g.Player.Score
-        }
-        
     case TilePowerPellet:
         level[playerTileY][playerTileX] = TileEmpty
         g.Player.Score += 50
@@ -255,11 +298,6 @@ func (g *Game) checkPelletCollection() {
             if ghost.Visible {
                 ghost.SetFrightened(600)
             }
-        }
-        
-        // Update player score
-        if g.Player != nil {
-            g.Player.Score = g.Player.Score
         }
     }
 }
@@ -296,8 +334,8 @@ func (g *Game) resetGhosts() {
     g.powerPelletActive = false
     g.powerPelletTimer = 0
 }
+
 func (g *Game) resetGame() {
-    //g.Player.Score = 0
     if g.Player != nil {
         g.Player.Score = 0
         g.resetPlayerPosition()
@@ -305,16 +343,11 @@ func (g *Game) resetGame() {
         log.Println("⚠️ Warning: g.Player is nil during resetGame")
     }
     g.lives = 3
-    g.resetPlayerPosition()
     g.resetGhosts()
     
     // Reset level pellets
     InitPellets(level, TileSize)
     g.countPellets()
-    
-    if g.Player != nil {
-        g.Player.Score = 0
-    }
 }
 
 func (g *Game) countPellets() {
@@ -534,9 +567,9 @@ func handleTunnels(px, py *float64, screenWidth, screenHeight float64) {
 }
 
 // Helper function to check if a position is valid for movement
-func isValidPosition(level [][]int, x, y, size, tileSize int) bool {
-    return !isWallColliding(level, float64(x), float64(y), size, tileSize)
-}
+// func isValidPosition(level [][]int, x, y, size, tileSize int) bool {
+//     return !isWallColliding(level, float64(x), float64(y), size, tileSize)
+// }
 
 // Get tile type at pixel coordinates
 func getTileAt(level [][]int, px, py float64, tileSize int) int {

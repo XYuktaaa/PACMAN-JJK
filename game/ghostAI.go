@@ -3,7 +3,7 @@ package main
 import (
 	"container/heap"
 	"math"
-	"fmt"
+	// "fmt"
 )
 
 type Node struct {
@@ -51,31 +51,20 @@ func heuristic(a, b Node) float64 {
 	return dx + dy
 }
 
-// Improved A* pathfinding with better performance and error handling
+// A* pathfinding implementation
 func findPath(level [][]int, startX, startY, endX, endY int) []Node {
-    fmt.Printf("findPath called: start(%d,%d) -> end(%d,%d)\n", startX, startY, endX, endY)
-    
-    // Validate input bounds
+    // Validate bounds
     if startY < 0 || startY >= len(level) || startX < 0 || startX >= len(level[0]) ||
        endY < 0 || endY >= len(level) || endX < 0 || endX >= len(level[0]) {
-        fmt.Printf("Out of bounds: start(%d,%d) end(%d,%d), level size %dx%d\n", 
-                   startX, startY, endX, endY, len(level[0]), len(level))
         return nil
     }
-
-    fmt.Printf("Start tile value: %d, End tile value: %d\n", level[startY][startX], level[endY][endX])
 
     // Check if start or end is a wall
-    if level[startY][startX] == 1 {
-        fmt.Printf("Start position (%d,%d) is a wall!\n", startX, startY)
-        return nil
-    }
-    if level[endY][endX] == 1 {
-        fmt.Printf("End position (%d,%d) is a wall!\n", endX, endY)
+    if level[startY][startX] == TileWall || level[endY][endX] == TileWall {
         return nil
     }
 
-    // If already at target, return single-node path
+    // If already at target
     if startX == endX && startY == endY {
         return []Node{{X: startX, Y: startY}}
     }
@@ -89,15 +78,12 @@ func findPath(level [][]int, startX, startY, endX, endY int) []Node {
     heap.Init(&openSet)
     heap.Push(&openSet, start)
 
-    gScore := make(map[[2]int]float64)
-    gScore[[2]int{start.X, start.Y}] = 0
-
     closedSet := make(map[[2]int]bool)
     inOpenSet := make(map[[2]int]*Node)
     inOpenSet[[2]int{start.X, start.Y}] = start
 
     directions := [][2]int{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}
-    maxIterations := len(level) * len(level[0]) * 2
+    maxIterations := len(level) * len(level[0])
     iterations := 0
 
     for openSet.Len() > 0 && iterations < maxIterations {
@@ -109,7 +95,6 @@ func findPath(level [][]int, startX, startY, endX, endY int) []Node {
         delete(inOpenSet, currentKey)
         
         if current.X == goal.X && current.Y == goal.Y {
-            fmt.Printf("Path found after %d iterations!\n", iterations)
             return reconstructPath(current)
         }
 
@@ -123,8 +108,8 @@ func findPath(level [][]int, startX, startY, endX, endY int) []Node {
                 continue
             }
             
-            // IMPORTANT: Allow movement through empty spaces (0), pellets (2), and power pellets (4)
-            if level[ny][nx] != 0 && level[ny][nx] != 2 && level[ny][nx] != 4 {
+            // Allow movement through walkable tiles
+            if !isWalkableTile(level[ny][nx]) {
                 continue
             }
 
@@ -153,25 +138,28 @@ func findPath(level [][]int, startX, startY, endX, endY int) []Node {
                 
                 heap.Push(&openSet, neighbor)
                 inOpenSet[neighborKey] = neighbor
-                gScore[neighborKey] = tentativeG
             }
         }
     }
 
-    fmt.Printf("No path found after %d iterations\n", iterations)
     return nil
+}
+
+// Helper function to check if a tile is walkable
+func isWalkableTile(tile int) bool {
+    return tile == TileEmpty || tile == TilePellet || tile == TilePowerPellet
 }
 // Reconstruct path from goal to start
 func reconstructPath(node *Node) []Node {
-	path := make([]Node, 0)
-	current := node
-	
-	for current != nil {
-		path = append([]Node{{X: current.X, Y: current.Y}}, path...)
-		current = current.Parent
-	}
-	
-	return path
+    path := make([]Node, 0)
+    current := node
+    
+    for current != nil {
+        path = append([]Node{{X: current.X, Y: current.Y}}, path...)
+        current = current.Parent
+    }
+    
+    return path
 }
 
 // Smooth path by removing unnecessary waypoints (optional optimization)
@@ -228,61 +216,61 @@ func hasLineOfSight(level [][]int, start, end Node) bool {
 }
 
 // Alternative simple pathfinding for when A* might be overkill
-func findSimplePath(level [][]int, startX, startY, endX, endY int) []Node {
-	// Simple greedy approach - move towards target when possible
-	path := make([]Node, 0)
-	x, y := startX, startY
-	path = append(path, Node{X: x, Y: y})
+func findSimplePath(level [][]int, startX, startY, endX, endY, tileSize int) []Node {
+    startTileX := startX / tileSize
+    startTileY := startY / tileSize
+    endTileX := endX / tileSize
+    endTileY := endY / tileSize
+    
+    path := make([]Node, 0)
+    x, y := startTileX, startTileY
+    path = append(path, Node{X: x, Y: y})
 
-	maxSteps := 100 // Prevent infinite loops
-	steps := 0
+    maxSteps := 50
+    steps := 0
 
-	for (x != endX || y != endY) && steps < maxSteps {
-		steps++
-		moved := false
+    for (x != endTileX || y != endTileY) && steps < maxSteps {
+        steps++
+        moved := false
 
-		// Prefer horizontal movement first
-		if x != endX {
-			newX := x
-			if endX > x {
-				newX = x + 1
-			} else {
-				newX = x - 1
-			}
-			
-			if newX >= 0 && newX < len(level[0]) && level[y][newX] == 0 {
-				x = newX
-				path = append(path, Node{X: x, Y: y})
-				moved = true
-			}
-		}
+        // Try horizontal movement first
+        if x != endTileX {
+            newX := x
+            if endTileX > x {
+                newX = x + 1
+            } else {
+                newX = x - 1
+            }
+            
+            if newX >= 0 && newX < len(level[0]) && 
+               (level[y][newX] == TileEmpty || level[y][newX] == TilePellet || level[y][newX] == TilePowerPellet) {
+                x = newX
+                path = append(path, Node{X: x, Y: y})
+                moved = true
+            }
+        }
 
-		// Then try vertical movement
-		if !moved && y != endY {
-			newY := y
-			if endY > y {
-				newY = y + 1
-			} else {
-				newY = y - 1
-			}
-			
-			if newY >= 0 && newY < len(level) && level[newY][x] == 0 {
-				y = newY
-				path = append(path, Node{X: x, Y: y})
-				moved = true
-			}
-		}
+        // Try vertical movement
+        if !moved && y != endTileY {
+            newY := y
+            if endTileY > y {
+                newY = y + 1
+            } else {
+                newY = y - 1
+            }
+            
+            if newY >= 0 && newY < len(level) && 
+               (level[newY][x] == TileEmpty || level[newY][x] == TilePellet || level[newY][x] == TilePowerPellet) {
+                y = newY
+                path = append(path, Node{X: x, Y: y})
+                moved = true
+            }
+        }
 
-		// If we can't move towards target, we're stuck
-		if !moved {
-			break
-		}
-	}
+        if !moved {
+            break
+        }
+    }
 
-	if x == endX && y == endY {
-		return path
-	}
-	
-	// Fallback to A* if simple path fails
-	return findPath(level, startX, startY, endX, endY)
+    return path
 }
