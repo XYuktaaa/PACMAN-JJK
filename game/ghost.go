@@ -5,8 +5,10 @@ import (
 	"math/rand"
 	"time"
 	"github.com/hajimehoshi/ebiten/v2"
+
+"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"fmt"
-	// . "./ghostAI"
+	"image/color"
 )
 
 
@@ -190,8 +192,8 @@ func NewGhost(x, y float64, imagePath, ghostType string, size int) *Ghost {
 	ghost := &Ghost{
 		X:               x,
 		Y:               y,
-		Speed:           1.0,
-		BaseSpeed:       1.0,
+		Speed:           0.8,
+		BaseSpeed:       0.8,
 		Image:           image,
 		Direction:       "up",
 		PreviousDirection: "up",
@@ -205,23 +207,23 @@ func NewGhost(x, y float64, imagePath, ghostType string, size int) *Ghost {
 	}
 	// Set ghost-specific properties
 	switch ghostType {
-	case "blinky":
+	case "jogo"://Blinky
 		ghost.ScatterTarget = [2]int{25, 0}    // Top-right
 		ghost.ReleaseTimer = 0
 		ghost.Mode = ChaseMode
 		ghost.ChaseTimer=1200
-	case "pinky":
+	case "sakuna"://Pinky
 		ghost.ScatterTarget = [2]int{2, 0}     // Top-left
-		ghost.Mode=ChaseMode
+		//ghost.Mode=ChaseMode
 		ghost.ReleaseTimer = 300
-	case "inky":
+	case "kenjaku"://Inky
 		ghost.ScatterTarget = [2]int{25, 30}// Bottom-right
-		ghost.Mode=ChaseMode
+		//ghost.Mode=ChaseMode
 		ghost.ReleaseTimer = 600
-	case "clyde":
+	case "mahito"://clyde
 		ghost.ScatterTarget = [2]int{2, 30}    // Bottom-left
 		ghost.ReleaseTimer = 900
-		ghost.Mode=ChaseMode
+		//ghost.Mode=ChaseMode
 	}
 	fmt.Printf("Created ghost %s at (%.1f, %.1f) with speed %.2f\n", 
 		ghostType, x, y, ghost.Speed)
@@ -426,40 +428,153 @@ func min(a, b int) int {
 	return b
 }
 
-
-// UpdateTarget sets the ghost's target based on AI behavior
-func (g *Ghost) UpdateTarget(gameState *GameStateStruct) {
-	switch g.Mode {
-	case ChaseMode:
-		g.updateChaseTarget(gameState)
-	case ScatterMode:
-		g.TargetX = g.ScatterTarget[0]
-		g.TargetY = g.ScatterTarget[1]
-		// Debug output
-		fmt.Printf("Ghost %s scatter mode: target=(%d,%d)\n", g.GhostType, g.TargetX, g.TargetY)
-	case FrightenedMode:
-		g.updateFrightenedTarget(gameState)
-	case DeadMode:
-		g.TargetX = GHOST_HOUSE_X
-		g.TargetY = GHOST_HOUSE_Y
-	case InHouseMode:
-		if g.ReleaseTimer <= 0 {
-			g.TargetX = GHOST_HOUSE_X
-			g.TargetY = GHOST_HOUSE_EXIT_Y
-		}
-	}
-	
-	// Ensure target is within bounds
-	g.clampTarget(gameState)
+func (g *Ghost) moveToTarget(gameState *GameStateStruct) {
+    // Debug info
+    if g.PersonalityMode%120 == 0 {
+        fmt.Printf("Moving %s: pos(%.1f,%.1f) target(%d,%d) mode=%d\n",
+                   g.GhostType, g.X, g.Y, g.TargetX, g.TargetY, g.Mode)
+    }
+    
+    targetPixelX := float64(g.TargetX * TileSize)
+    targetPixelY := float64(g.TargetY * TileSize)
+    
+    // Calculate direction to target
+    dx := targetPixelX - g.X
+    dy := targetPixelY - g.Y
+    
+    // If close enough to target, we're done
+    if math.Abs(dx) < 4 && math.Abs(dy) < 4 {
+        return
+    }
+    
+    // Determine primary and secondary movement directions
+    var primaryMove, secondaryMove struct {
+        name string
+        dx, dy float64
+    }
+    
+    if math.Abs(dx) > math.Abs(dy) {
+        // Horizontal movement is primary
+        if dx > 0 {
+            primaryMove = struct{name string; dx, dy float64}{"right", g.Speed, 0}
+        } else {
+            primaryMove = struct{name string; dx, dy float64}{"left", -g.Speed, 0}
+        }
+        
+        if dy > 0 {
+            secondaryMove = struct{name string; dx, dy float64}{"down", 0, g.Speed}
+        } else {
+            secondaryMove = struct{name string; dx, dy float64}{"up", 0, -g.Speed}
+        }
+    } else {
+        // Vertical movement is primary
+        if dy > 0 {
+            primaryMove = struct{name string; dx, dy float64}{"down", 0, g.Speed}
+        } else {
+            primaryMove = struct{name string; dx, dy float64}{"up", 0, -g.Speed}
+        }
+        
+        if dx > 0 {
+            secondaryMove = struct{name string; dx, dy float64}{"right", g.Speed, 0}
+        } else {
+            secondaryMove = struct{name string; dx, dy float64}{"left", -g.Speed, 0}
+        }
+    }
+    
+    // Try primary movement first
+    newX := g.X + primaryMove.dx
+    newY := g.Y + primaryMove.dy
+    
+    if g.isValidPosition(gameState, newX, newY) {
+        g.X = newX
+        g.Y = newY
+        g.Direction = primaryMove.name
+        return
+    }
+    
+    // Try secondary movement
+    newX = g.X + secondaryMove.dx
+    newY = g.Y + secondaryMove.dy
+    
+    if g.isValidPosition(gameState, newX, newY) {
+        g.X = newX
+        g.Y = newY
+        g.Direction = secondaryMove.name
+        return
+    }
+    
+    // If both failed, try all 4 directions as backup
+    allDirections := []struct{name string; dx, dy float64}{
+        {"up", 0, -g.Speed},
+        {"down", 0, g.Speed},
+        {"left", -g.Speed, 0},
+        {"right", g.Speed, 0},
+    }
+    
+    for _, dir := range allDirections {
+        newX := g.X + dir.dx
+        newY := g.Y + dir.dy
+        
+        if g.isValidPosition(gameState, newX, newY) {
+            g.X = newX
+            g.Y = newY
+            g.Direction = dir.name
+            return
+        }
+    }
+    
+    // Last resort: try smaller movements to get unstuck
+    for _, dir := range allDirections {
+        newX := g.X + dir.dx * 0.1 // Very small movement
+        newY := g.Y + dir.dy * 0.1
+        
+        if g.isValidPosition(gameState, newX, newY) {
+            g.X = newX
+            g.Y = newY
+            g.Direction = dir.name
+            fmt.Printf("Ghost %s unstuck with micro-movement %s\n", g.GhostType, dir.name)
+            return
+        }
+    }
+    
+    fmt.Printf("Ghost %s completely stuck at (%.1f,%.1f)!\n", g.GhostType, g.X, g.Y)
 }
 
-// func loadImage(path string) *ebiten.Image {
-//     img, _, err := ebitenutil.NewImageFromFile(path)
-//     if err != nil {
-//         log.Fatalf("failed to load ghost image %s: %v", path, err)
-//     }
-//     return img
-// }
+func (g *Ghost) UpdateTarget(gameState *GameStateStruct) {
+    oldTargetX, oldTargetY := g.TargetX, g.TargetY
+    
+    switch g.Mode {
+    case ChaseMode:
+        g.updateChaseTarget(gameState)
+    case ScatterMode:
+        g.TargetX = g.ScatterTarget[0]
+        g.TargetY = g.ScatterTarget[1]
+    case FrightenedMode:
+        g.updateFrightenedTarget(gameState)
+    case DeadMode:
+        g.TargetX = GHOST_HOUSE_X
+        g.TargetY = GHOST_HOUSE_Y
+    case InHouseMode:
+        if g.ReleaseTimer <= 0 {
+            // Move toward exit
+            g.TargetX = GHOST_HOUSE_X
+            g.TargetY = GHOST_HOUSE_EXIT_Y
+        } else {
+            // Stay in house area - set a position inside the house
+            g.TargetX = GHOST_HOUSE_X
+            g.TargetY = GHOST_HOUSE_Y
+        }
+    }
+    
+    // Clamp target to valid bounds
+    g.clampTarget(gameState)
+    
+    // Debug: Log target changes
+    if (g.TargetX != oldTargetX || g.TargetY != oldTargetY) && g.PersonalityMode%60 == 0 {
+        fmt.Printf("Ghost %s target changed: (%d,%d) -> (%d,%d) [mode=%d]\n",
+                   g.GhostType, oldTargetX, oldTargetY, g.TargetX, g.TargetY, g.Mode)
+    }
+}
 
 // Advanced chase AI for each ghost type
 // func (g *Ghost) updateChaseTarget(gameState *GameStateStruct) {
@@ -623,113 +738,115 @@ func (g *Ghost) updateFrightenedTarget(gameState *GameStateStruct) {
 		g.TargetY = target.Y
 	}
 }
-// Move towards target using pathfinding from ghostAI.go
-func (g *Ghost) moveToTarget(gameState *GameStateStruct) {
-	// Try to move in small steps toward target
-	targetPixelX := float64(g.TargetX * TileSize)
-	targetPixelY := float64(g.TargetY * TileSize)
+
+
+// // Move towards target using pathfinding from ghostAI.go
+// func (g *Ghost) moveToTarget(gameState *GameStateStruct) {
+// 	// Try to move in small steps toward target
+// 	targetPixelX := float64(g.TargetX * TileSize)
+// 	targetPixelY := float64(g.TargetY * TileSize)
 	
-	// Calculate direction to target
-	dx := targetPixelX - g.X
-	dy := targetPixelY - g.Y
+// 	// Calculate direction to target
+// 	dx := targetPixelX - g.X
+// 	dy := targetPixelY - g.Y
 	
-	// If very close to target, we're done
-	if math.Abs(dx) < 2 && math.Abs(dy) < 2 {
-		return
-	}
+// 	// If very close to target, we're done
+// 	if math.Abs(dx) < 2 && math.Abs(dy) < 2 {
+// 		return
+// 	}
 	
-	// Normalize direction
-	distance := math.Sqrt(dx*dx + dy*dy)
-	if distance == 0 {
-		return
-	}
+// 	// Normalize direction
+// 	distance := math.Sqrt(dx*dx + dy*dy)
+// 	if distance == 0 {
+// 		return
+// 	}
 	
-	moveX := (dx / distance) * g.Speed
-	moveY := (dy / distance) * g.Speed
+// 	moveX := (dx / distance) * g.Speed
+// 	moveY := (dy / distance) * g.Speed
 	
-	// Try direct movement first
-	newX := g.X + moveX
-	newY := g.Y + moveY
+// 	// Try direct movement first
+// 	newX := g.X + moveX
+// 	newY := g.Y + moveY
 	
-	if g.isValidPosition(gameState, newX, newY) {
-		g.X = newX
-		g.Y = newY
+// 	if g.isValidPosition(gameState, newX, newY) {
+// 		g.X = newX
+// 		g.Y = newY
 		
-		// Update direction for animation
-		if math.Abs(moveX) > math.Abs(moveY) {
-			if moveX > 0 {
-				g.Direction = "right"
-			} else {
-				g.Direction = "left"
-			}
-		} else {
-			if moveY > 0 {
-				g.Direction = "down"
-			} else {
-				g.Direction = "up"
-			}
-		}
-		return
-	}
+// 		// Update direction for animation
+// 		if math.Abs(moveX) > math.Abs(moveY) {
+// 			if moveX > 0 {
+// 				g.Direction = "right"
+// 			} else {
+// 				g.Direction = "left"
+// 			}
+// 		} else {
+// 			if moveY > 0 {
+// 				g.Direction = "down"
+// 			} else {
+// 				g.Direction = "up"
+// 			}
+// 		}
+// 		return
+// 	}
 	
-	// If direct movement fails, try axis-aligned movement
-	// Try horizontal first
-	if math.Abs(dx) > math.Abs(dy) {
-		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
-			g.X += g.Speed
-			g.Direction = "right"
-			return
-		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
-			g.X -= g.Speed
-			g.Direction = "left"
-			return
-		}
-	}
+// 	// If direct movement fails, try axis-aligned movement
+// 	// Try horizontal first
+// 	if math.Abs(dx) > math.Abs(dy) {
+// 		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
+// 			g.X += g.Speed
+// 			g.Direction = "right"
+// 			return
+// 		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
+// 			g.X -= g.Speed
+// 			g.Direction = "left"
+// 			return
+// 		}
+// 	}
 	
-	// Try vertical
-	if dy > 0 && g.isValidPosition(gameState, g.X, g.Y + g.Speed) {
-		g.Y += g.Speed
-		g.Direction = "down"
-		return
-	} else if dy < 0 && g.isValidPosition(gameState, g.X, g.Y - g.Speed) {
-		g.Y -= g.Speed
-		g.Direction = "up"
-		return
-	}
+// 	// Try vertical
+// 	if dy > 0 && g.isValidPosition(gameState, g.X, g.Y + g.Speed) {
+// 		g.Y += g.Speed
+// 		g.Direction = "down"
+// 		return
+// 	} else if dy < 0 && g.isValidPosition(gameState, g.X, g.Y - g.Speed) {
+// 		g.Y -= g.Speed
+// 		g.Direction = "up"
+// 		return
+// 	}
 	
-	// If horizontal failed, try the other horizontal direction
-	if math.Abs(dx) <= math.Abs(dy) {
-		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
-			g.X += g.Speed
-			g.Direction = "right"
-			return
-		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
-			g.X -= g.Speed
-			g.Direction = "left"
-			return
-		}
-	}
+// 	// If horizontal failed, try the other horizontal direction
+// 	if math.Abs(dx) <= math.Abs(dy) {
+// 		if dx > 0 && g.isValidPosition(gameState, g.X + g.Speed, g.Y) {
+// 			g.X += g.Speed
+// 			g.Direction = "right"
+// 			return
+// 		} else if dx < 0 && g.isValidPosition(gameState, g.X - g.Speed, g.Y) {
+// 			g.X -= g.Speed
+// 			g.Direction = "left"
+// 			return
+// 		}
+// 	}
 	
-	// Last resort: try any valid direction
-	directions := []struct{
-		name string
-		dx, dy float64
-	}{
-		{"up", 0, -g.Speed},
-		{"down", 0, g.Speed},
-		{"left", -g.Speed, 0},
-		{"right", g.Speed, 0},
-	}
+// 	// Last resort: try any valid direction
+// 	directions := []struct{
+// 		name string
+// 		dx, dy float64
+// 	}{
+// 		{"up", 0, -g.Speed},
+// 		{"down", 0, g.Speed},
+// 		{"left", -g.Speed, 0},
+// 		{"right", g.Speed, 0},
+// 	}
 	
-	for _, dir := range directions {
-		if g.isValidPosition(gameState, g.X + dir.dx, g.Y + dir.dy) {
-			g.X += dir.dx
-			g.Y += dir.dy
-			g.Direction = dir.name
-			return
-		}
-	}
-}
+// 	for _, dir := range directions {
+// 		if g.isValidPosition(gameState, g.X + dir.dx, g.Y + dir.dy) {
+// 			g.X += dir.dx
+// 			g.Y += dir.dy
+// 			g.Direction = dir.name
+// 			return
+// 		}
+// 	}
+// }
 
 // // Choose random valid direction when pathfinding fails
 // func (g *Ghost) chooseRandomDirection(gameState *GameStateStruct) {
@@ -900,14 +1017,19 @@ func (g *Ghost) CollideWithPlayer(playerX, playerY float64) string {
 	threshold := float64(g.Size)/2 + 16 // Half ghost size + half player size
 	
 	if distance < threshold {
+    	fmt.Printf("Ghost %s collision! Mode: %d, Distance: %.2f, Threshold: %.2f\n", 
+                   g.GhostType, g.Mode, distance, threshold)
 		switch g.Mode {
 		case FrightenedMode:
 			if g.CanBeEaten() {
 				g.Mode = DeadMode
 				g.Speed = g.BaseSpeed * 2
+				g.Visible = false // Hide dead ghost temporarily
+                fmt.Printf("Ghost %s eaten!\n", g.GhostType)
 				return "ghost_eaten"
 			}
 		case ChaseMode, ScatterMode:
+    		fmt.Printf("Player caught by ghost %s!\n", g.GhostType)
 			return "player_caught"
 		}
 	}
@@ -939,39 +1061,88 @@ func (g *Ghost) CollidesWith(playerX, playerY float64, playerSize int) bool {
 	return result != "no_collision"
 }
 
-// Draw renders the ghost with state-based animations
 func (g *Ghost) Draw(screen *ebiten.Image) {
-	if !g.Visible || g.Image == nil {
-		return
-	}
-	
-	op := &ebiten.DrawImageOptions{}
-	
-	// Flashing effect when fright mode is ending
-	if g.Mode == FrightenedMode && g.FrightTimer < 120 {
-		if (g.FrightTimer/10)%2 == 0 {
-			op.ColorM.Scale(1, 1, 1, 0.7) // Semi-transparent
-		}
-	}
-	
-	// Death animation - darker appearance
-	if g.Mode == DeadMode {
-		op.ColorM.Scale(0.5, 0.5, 0.5, 1)
-	}
-	
-	// drawX := g.X - float64(g.Size/2)
-	// drawY := g.Y - float64(g.Size/2)
-	
-	// op.GeoM.Translate(drawX, drawY)
-	// Position
- // Scale factor to make image exactly g.Size × g.Size
+    if !g.Visible || g.Image == nil {
+        return
+    }
+    
+    op := &ebiten.DrawImageOptions{}
+    
+    // Frightened mode visual effects
+    if g.Mode == FrightenedMode {
+        // Blue color for frightened mode
+        if g.FrightTimer > 120 {
+            // Solid blue
+            op.ColorM.Scale(0.2, 0.2, 1.0, 1.0) // Blue tint
+        } else {
+            // Flashing white/blue when fright mode is ending
+            if (g.FrightTimer/10)%2 == 0 {
+                op.ColorM.Scale(0.8, 0.8, 1.0, 1.0) // Light blue/white
+            } else {
+                op.ColorM.Scale(0.2, 0.2, 1.0, 1.0) // Blue
+            }
+        }
+    }
+    
+    // Death animation - darker appearance with eyes only
+    if g.Mode == DeadMode {
+        op.ColorM.Scale(0.3, 0.3, 0.3, 0.8) // Dark and semi-transparent
+    }
+    
+    // Scale factor to make image exactly g.Size × g.Size
     scaleX := float64(g.Size) / float64(g.Image.Bounds().Dx())
     scaleY := float64(g.Size) / float64(g.Image.Bounds().Dy())
     op.GeoM.Scale(scaleX, scaleY)
 
     // Position after scaling
     op.GeoM.Translate(g.X, g.Y)
-	screen.DrawImage(g.Image, op)
+    screen.DrawImage(g.Image, op)
+    
+    // Debug: Draw hitbox in frightened mode
+    if g.Mode == FrightenedMode {
+        // Draw a blue rectangle outline to show hitbox
+        ebitenutil.DrawRect(screen, g.X, g.Y, float64(g.Size), 2, color.RGBA{0, 0, 255, 128}) // Top
+        ebitenutil.DrawRect(screen, g.X, g.Y, 2, float64(g.Size), color.RGBA{0, 0, 255, 128}) // Left  
+        ebitenutil.DrawRect(screen, g.X+float64(g.Size)-2, g.Y, 2, float64(g.Size), color.RGBA{0, 0, 255, 128}) // Right
+        ebitenutil.DrawRect(screen, g.X, g.Y+float64(g.Size)-2, float64(g.Size), 2, color.RGBA{0, 0, 255, 128}) // Bottom
+    }
+}
+
+func (g *Ghost) debugSurroundingTiles(gameState *GameStateStruct) {
+    currentTileX := int(g.X / TileSize)
+    currentTileY := int(g.Y / TileSize)
+    
+    fmt.Printf("=== TILE DEBUG for %s at (%.1f, %.1f) = tile (%d, %d) ===\n", 
+               g.GhostType, g.X, g.Y, currentTileX, currentTileY)
+    
+    // Check 3x3 area around ghost
+    for dy := -1; dy <= 1; dy++ {
+        for dx := -1; dx <= 1; dx++ {
+            tx := currentTileX + dx
+            ty := currentTileY + dy
+            
+            if ty >= 0 && ty < len(gameState.Level) && tx >= 0 && tx < len(gameState.Level[0]) {
+                tileType := gameState.Level[ty][tx]
+                symbol := "?"
+                switch tileType {
+                case TileEmpty:
+                    symbol = "."
+                case TileWall:
+                    symbol = "#"
+                case TilePellet:
+                    symbol = "o"
+                case TilePowerPellet:
+                    symbol = "O"
+                }
+                fmt.Printf("%s ", symbol)
+            } else {
+                fmt.Printf("X ")
+            }
+        }
+        fmt.Printf("\n")
+    }
+    fmt.Printf("Current tile type: %d\n", gameState.Level[currentTileY][currentTileX])
+    fmt.Printf("===================\n")
 }
 
 // Tunnel handling for screen wrapping
@@ -1149,61 +1320,97 @@ func (g *Ghost) updateTimers() {
 }
 
 func (g *Ghost) updateMode(gameState *GameStateStruct) {
-	// Global fright mode overrides individual timers
-	if gameState.FrightModeActive && g.Mode != DeadMode && g.Mode != InHouseMode {
-		if g.Mode != FrightenedMode {
-			g.SetFrightened(600) // 10 seconds
-		}
-		return
-	}
-	
-	// Release from house
-	if g.Mode == InHouseMode && g.ReleaseTimer <= 0 {
-		g.Mode = ScatterMode
-		g.ScatterTimer = 420
-	}
-	
-	// Mode transitions based on timers
-	if g.FrightTimer <= 0 && g.Mode == FrightenedMode {
-		g.Mode = ChaseMode
-		g.ChaseTimer = 1200
-		g.Speed = g.BaseSpeed
-	}
-	
-	if g.ChaseTimer <= 0 && g.Mode == ChaseMode {
-		g.Mode = ScatterMode
-		g.ScatterTimer = 420
-	}
-	
-	if g.ScatterTimer <= 0 && g.Mode == ScatterMode {
-		g.Mode = ChaseMode
-		g.ChaseTimer = 1200
-	}
+    oldMode := g.Mode
+    
+    // Global fright mode overrides everything except dead mode
+    if gameState.FrightModeActive && g.Mode != DeadMode {
+        if g.Mode != FrightenedMode {
+            g.SetFrightened(600)
+        }
+        return
+    }
+    
+    // Handle release from ghost house
+    if g.Mode == InHouseMode {
+        if g.ReleaseTimer <= 0 {
+            // Released! Start in scatter mode
+            g.Mode = ScatterMode
+            g.ScatterTimer = 420 // 7 seconds
+            if oldMode != g.Mode {
+                fmt.Printf("Ghost %s released from house, entering scatter mode\n", g.GhostType)
+            }
+        } else {
+            // Still waiting to be released
+            g.ReleaseTimer--
+            return
+        }
+    }
+    
+    // Normal mode transitions
+    if g.FrightTimer <= 0 && g.Mode == FrightenedMode {
+        g.Mode = ScatterMode // Start with scatter after fright
+        g.ScatterTimer = 420
+        g.Speed = g.BaseSpeed
+        if oldMode != g.Mode {
+            fmt.Printf("Ghost %s exiting fright mode, entering scatter\n", g.GhostType)
+        }
+    }
+     if g.ChaseTimer <= 0 && g.Mode == ChaseMode {
+        g.Mode = ScatterMode
+        g.ScatterTimer = 420
+        if oldMode != g.Mode {
+            fmt.Printf("Ghost %s switching to scatter mode\n", g.GhostType)
+        }
+    }
+    
+    if g.ScatterTimer <= 0 && g.Mode == ScatterMode {
+        g.Mode = ChaseMode
+        g.ChaseTimer = 1200
+        if oldMode != g.Mode {
+            fmt.Printf("Ghost %s switching to chase mode\n", g.GhostType)
+        }
+    }
 }
 
-// func (g *Ghost) smoothMovement(deltaTime float64) {
-// 	// Implement smooth interpolation for movement
-// 	// This helps with visual smoothness between frames
-// }
 func (g *Ghost) isValidPosition(gameState *GameStateStruct, pixelX, pixelY float64) bool {
-	// Only check the center point for now - much more lenient
-	centerX := pixelX + float64(g.Size)/2
-	centerY := pixelY + float64(g.Size)/2
-	
-	tileX := int(centerX / TileSize)
-	tileY := int(centerY / TileSize)
-	
-	// Bounds check
-	if tileY < 0 || tileY >= len(gameState.Level) || 
-	   tileX < 0 || tileX >= len(gameState.Level[0]) {
-		return false
-	}
-	
-	// Only check if center hits a wall
-	return gameState.Level[tileY][tileX] != TileWall
+    // Check all four corners of the ghost, not just center
+    margin := 1.0 // Small margin to prevent wall clipping
+    size:=float64(g.Size)
+    checkPoints := [][2]float64{
+        {pixelX + size/2, pixelY + size/2},           // Center (most important)
+        {pixelX + margin, pixelY + margin},           // Top-left
+        {pixelX + size - margin, pixelY + margin},    // Top-right
+        {pixelX + margin, pixelY + size - margin},    // Bottom-left
+        {pixelX + size - margin, pixelY + size - margin}, // Bottom-right
+    }
+    
+    for i, point := range checkPoints {
+        tileX := int(point[0] / TileSize)
+        tileY := int(point[1] / TileSize)
+        
+        // Bounds check
+        if tileY < 0 || tileY >= len(gameState.Level) || 
+           tileX < 0 || tileX >= len(gameState.Level[0]) {
+            return false
+        }
+        
+        // Wall check
+        if gameState.Level[tileY][tileX] == TileWall {
+            // For center point, this is definitely invalid
+            if i == 0 {
+                return false
+            }
+            // For corner points, allow some wall overlap if center is clear
+            // This makes movement more forgiving
+            continue
+        }
+    }
+    
+    return true
 }
 
-// Helper function for tile-based position checking
+
+    // Helper function for tile-based position checking
 func (g *Ghost) isValidTilePosition(gameState *GameStateStruct, tileX, tileY int) bool {
 	// Convert tile coordinates to pixel coordinates
 	pixelX := float64(tileX * TileSize)
@@ -1332,4 +1539,40 @@ func (g *Ghost) getDistance(targetX, targetY float64) float64 {
 	dx := targetX - ghostCenterX
 	dy := targetY - ghostCenterY
 	return math.Sqrt(dx*dx + dy*dy)
+}
+
+func (g *Ghost) printLocalArea(gameState *GameStateStruct) {
+    currentTileX := int(g.X / TileSize)
+    currentTileY := int(g.Y / TileSize)
+    
+    fmt.Printf("=== AREA AROUND %s at (%d,%d) ===\n", g.GhostType, currentTileX, currentTileY)
+    
+    for dy := -3; dy <= 3; dy++ {
+        for dx := -3; dx <= 3; dx++ {
+            tx := currentTileX + dx
+            ty := currentTileY + dy
+            
+            if ty >= 0 && ty < len(gameState.Level) && tx >= 0 && tx < len(gameState.Level[0]) {
+                tile := gameState.Level[ty][tx]
+                switch {
+                case dx == 0 && dy == 0:
+                    fmt.Printf("[%d]", tile) // Ghost position
+                case tile == TileWall:
+                    fmt.Printf(" # ")
+                case tile == TileEmpty:
+                    fmt.Printf(" . ")
+                case tile == TilePellet:
+                    fmt.Printf(" o ")
+                case tile == TilePowerPellet:
+                    fmt.Printf(" O ")
+                default:
+                    fmt.Printf(" ? ")
+                }
+            } else {
+                fmt.Printf(" X ") // Out of bounds
+            }
+        }
+        fmt.Printf("\n")
+    }
+    fmt.Printf("===============================\n")
 }

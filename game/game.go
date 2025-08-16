@@ -198,9 +198,11 @@ func (g *Game) updateGame() error {
         if g.powerPelletTimer <= 0 {
             g.powerPelletActive = false
             g.gameState.FrightModeActive = false
+             fmt.Println("Power pellet mode ended") // Debug
             // Reset all ghosts to normal mode
             for _, ghost := range g.Ghosts {
-                ghost.ResetMode()
+                if ghost.Mode == FrightenedMode {
+                ghost.ResetMode()}
             }
         }
     }
@@ -292,6 +294,7 @@ func (g *Game) checkPelletCollection() {
         // Activate power pellet mode
         g.powerPelletActive = true
         g.powerPelletTimer = 600 // 10 seconds at 60 FPS
+        g.gameState.FrightModeActive=true
         
         // Set all visible ghosts to frightened mode
         for _, ghost := range g.Ghosts {
@@ -299,6 +302,11 @@ func (g *Game) checkPelletCollection() {
                 ghost.SetFrightened(600)
             }
         }
+        // Also trigger through ghost manager
+        if g.ghostManager != nil {
+            g.ghostManager.TriggerFrightMode()
+        }
+
     }
 }
 
@@ -310,30 +318,7 @@ func (g *Game) resetPlayerPosition() {
     }
 }
 
-func (g *Game) resetGhosts() {
-    // Force ghosts to proper starting positions in empty spaces
-    ghostStartPositions := [][2]float64{
-        {13 * TileSize, 13 * TileSize}, // jogo - center of ghost house
-        {12 * TileSize, 13 * TileSize}, // sukuna - left of center
-        {14 * TileSize, 13 * TileSize}, // kenjaku - right of center  
-        {13 * TileSize, 11 * TileSize}, // mahito - above center
-    }
-    
-    for i, ghost := range g.Ghosts {
-        if i < len(ghostStartPositions) {
-            ghost.X = ghostStartPositions[i][0]
-            ghost.Y = ghostStartPositions[i][1]
-            fmt.Printf("Reset ghost %s to position (%.1f, %.1f) = tile (%d, %d)\n", 
-                      ghost.Name, ghost.X, ghost.Y, 
-                      int(ghost.X)/TileSize, int(ghost.Y)/TileSize)
-        }
-        ghost.ResetMode()
-        ghost.SetVisible(true)
-    }
-    
-    g.powerPelletActive = false
-    g.powerPelletTimer = 0
-}
+
 
 func (g *Game) resetGame() {
     if g.Player != nil {
@@ -605,4 +590,94 @@ func isWallCollidingStrict(level [][]int, px, py float64, size, TileSize int) bo
     }
 
     return false
+}
+func (g *Game) resetGhosts() {
+    // Use VERIFIED empty tile positions (check your level array first!)
+    // These positions should be in the CENTER of empty tiles
+    ghostStartPositions := [][2]float64{
+        // Place ghosts in known empty areas - ADJUST THESE TO YOUR ACTUAL LEVEL
+        {13*TileSize, 13*TileSize}, // jogo - center of ghost house
+        {12*TileSize, 13*TileSize}, // sukuna - left of center
+        {14*TileSize, 13*TileSize}, // kenjaku - right of center
+        {13*TileSize, 14*TileSize}, // mahito - below center
+    }
+    
+    fmt.Println("=== RESETTING GHOSTS ===")
+    
+    // Verify all positions are actually empty before placing ghosts
+    for i, pos := range ghostStartPositions {
+        if i >= len(g.Ghosts) {
+            break
+        }
+        
+        // Test if this tile is actually empty
+        tileX := int(pos[0] / TileSize)
+        tileY := int(pos[1] / TileSize)
+        
+        fmt.Printf("Checking position %d: pixel(%.1f,%.1f) = tile(%d,%d)\n", 
+                   i, pos[0], pos[1], tileX, tileY)
+        
+        if tileY >= 0 && tileY < len(level) && tileX >= 0 && tileX < len(level[0]) {
+            tileValue := level[tileY][tileX]
+            fmt.Printf("  Tile value: %d\n", tileValue)
+            
+            if tileValue == TileWall {
+                fmt.Printf("  ERROR: Position %d is a wall! Finding alternative...\n", i)
+                // Find the nearest empty tile
+                found := false
+                for radius := 1; radius <= 5 && !found; radius++ {
+                    for dy := -radius; dy <= radius && !found; dy++ {
+                        for dx := -radius; dx <= radius && !found; dx++ {
+                            checkX := tileX + dx
+                            checkY := tileY + dy
+                            
+                            if checkY >= 0 && checkY < len(level) && 
+                               checkX >= 0 && checkX < len(level[0]) && 
+                               level[checkY][checkX] != TileWall {
+                                ghostStartPositions[i][0] = float64(checkX * TileSize)
+                                ghostStartPositions[i][1] = float64(checkY * TileSize)
+                                fmt.Printf("  Found alternative: tile(%d,%d) = pixel(%.1f,%.1f)\n",
+                                          checkX, checkY, ghostStartPositions[i][0], ghostStartPositions[i][1])
+                                found = true
+                            }
+                        }
+                    }
+                }
+                if !found {
+                    fmt.Printf("  WARNING: Could not find safe position for ghost %d!\n", i)
+                }
+            }
+        }
+        
+        // Set ghost position
+        ghost := g.Ghosts[i]
+        ghost.X = ghostStartPositions[i][0]
+        ghost.Y = ghostStartPositions[i][1]
+        
+        // Reset ghost state properly
+        ghost.Speed = ghost.BaseSpeed
+        ghost.FrightTimer = 0
+        ghost.SetVisible(true)
+        
+        // Set proper initial modes based on ghost type
+        switch ghost.GhostType {
+        case "jogo":
+            ghost.Mode = ChaseMode
+            ghost.ChaseTimer = 1200
+            ghost.ReleaseTimer = 0
+            ghost.Direction = "left" // Start moving left from house
+        default:
+            ghost.Mode = InHouseMode
+            ghost.ReleaseTimer = 300 * (i + 1) // Stagger release times
+            ghost.Direction = "up" // Default direction
+        }
+        
+        fmt.Printf("Reset ghost %s: pos(%.1f,%.1f), mode=%d, release_timer=%d\n",
+                   ghost.GhostType, ghost.X, ghost.Y, ghost.Mode, ghost.ReleaseTimer)
+    }
+    
+    g.powerPelletActive = false
+    g.powerPelletTimer = 0
+    g.gameState.FrightModeActive = false
+    fmt.Println("=== RESET COMPLETE ===")
 }
