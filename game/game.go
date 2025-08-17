@@ -7,6 +7,7 @@ import (
     "image/color"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"log"
+	"math"
 )
 
 var glowColor = color.RGBA{255, 50, 50, 255} // bright red center
@@ -19,6 +20,9 @@ const(
     StatePlaying
     StateGameOver
     StatePaused
+    StateIntro
+    RoundReady
+    StateRoundReady
 )
 
 type GameStateStruct struct{
@@ -54,6 +58,13 @@ type Game struct{
     ghostManager *GhostManager
     gameState *GameStateStruct
     globalTimer int
+    IntroSystem  *IntroSystem
+    SoundManager *SoundManager
+    RoundReadyTimer  int
+    RoundNumber  int
+    ShowRoundReady bool
+    AudioSystem *AudioSystem
+
 }
 
 const TileSize = 32
@@ -67,6 +78,14 @@ func NewGame() *Game {
         Level: level,
         CurrentLevel: 1,
     }
+    AudioSystem:= NewAudioSystem()
+    
+    if AudioSystem != nil {
+        fmt.Println("🎵 Initializing audio system...")
+        AudioSystem.LoadAllAudio()
+    } else {
+        fmt.Println("❌ Failed to initialize audio system")
+    }
 
     g := &Game{
         Player: NewPlayer(playerStartX, playerStartY, "assets/player.png"),
@@ -77,6 +96,12 @@ func NewGame() *Game {
         playerStartY: playerStartY,
         gameState: gameState,
         globalTimer: 0,
+        IntroSystem: NewIntroSystem(),		
+        SoundManager: NewSoundManager(),		
+        RoundReadyTimer:0,
+        RoundNumber: 1,
+        ShowRoundReady: false,
+        AudioSystem: AudioSystem,
     }
 
     g.ghostManager = NewGhostManager(gameState) 
@@ -88,6 +113,8 @@ func NewGame() *Game {
     	NewGhost(13*TileSize, 14*TileSize, "assets/mahito.png", "mahito", 55),
 	}
 
+	//g.AudioSystem.LoadAllAudio()
+
     // Add ghosts to manager
     for _, ghost := range ghosts {
         g.ghostManager.AddGhost(ghost)
@@ -98,12 +125,28 @@ func NewGame() *Game {
 
     InitPellets(level, TileSize)
 	g.countPellets()
+	fmt.Println("🎵 Starting intro music...")
+	if g.SoundManager!=nil{
+		g.SoundManager.PlayBGM("Intro_theme")
+	}else{
+    	fmt.Println("⚠️  SoundManager is nil")
+	}
+	if g.AudioSystem != nil {
+        fmt.Println("🎵 AudioSystem is available, playing intro music")
+	g.AudioSystem.PlayIntroMusic()
+	} else {
+        fmt.Println("⚠️  AudioSystem is nil")
+    }
     return g
 }
 
 func (g *Game) Update() error {
     g.globalTimer++
     g.updateGameState()
+    if g.AudioSystem != nil {
+        g.AudioSystem.Update()
+    }
+     g.handleSoundControls()
 
     switch g.State {
     case StateMenu:
@@ -114,9 +157,58 @@ func (g *Game) Update() error {
         return g.updateGameOver()
     case StatePaused:
         return g.updatePaused()
+    case StateIntro:
+        return g.updateIntro()
+    case StateRoundReady:
+        return g.updateRoundReady()
     }
     return nil
 }
+func (g *Game) updateIntro() error {
+
+  if g.IntroSystem != nil {
+        err := g.IntroSystem.Update()
+        if err != nil {
+            return err
+        }
+        
+      // Check if intro is complete
+
+       if g.IntroSystem.IsComplete() {
+            fmt.Println("Intro complete, transitioning to menu")
+            g.State = StateMenu
+            g.SoundManager.PlayBGM("menu_theme")
+        }
+    }
+    return nil
+}
+
+func (g *Game) updateRoundReady() error {
+    g.RoundReadyTimer++
+    
+  // Auto-advance after 3 seconds or on input
+
+   if g.RoundReadyTimer > 180 || 
+       inpututil.IsKeyJustPressed(ebiten.KeySpace) || 
+       inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+        
+      g.State = StatePlaying
+
+       g.ShowRoundReady = false
+        g.RoundReadyTimer = 0
+        
+      // Start game music
+
+       g.SoundManager.PlayBGM("game_theme")
+        g.SoundManager.PlaySFX("round_start")
+        
+      fmt.Printf("Starting round %d\n", g.RoundNumber)
+    }
+    
+    
+  return nil
+}
+
 
 func (g *Game) updateGameState() {
     if g.Player != nil && g.gameState != nil {
@@ -143,8 +235,12 @@ func (g *Game) updateMenu() error {
             switch g.menuUI.GetSelectedOption() {
             case 0: // START GAME
                 fmt.Println("Starting game...")
-                g.State = StatePlaying
+                g.State = StateRoundReady
+                g.ShowRoundReady=true
+                g.RoundReadyTimer=0
+                g.RoundNumber=1 
                 g.resetGame()
+                g.SoundManager.PlaySFX("menu_selected")
             case 1: // SETTINGS (you can implement later)
                 fmt.Println("Settings selected")
                 // For now, do nothing or show a message
@@ -228,13 +324,18 @@ func (g *Game) updateGame() error {
         switch result {
         case "ghost_eaten":
             g.Player.Score += 200
+            g.SoundManager.PlaySFX("ghost_eaten")
             // Ghost manager already handles the ghost state change
         case "player_caught":
             g.lives--
+            g.SoundManager.PlaySFX("player_death")
             g.resetPlayerPosition()
+            
             
             if g.lives <= 0 {
                 g.State = StateGameOver
+                g.SoundManager.PlaySFX("game_over")
+                g.SoundManager.StopBGM()
                 return nil
             }
             
@@ -247,7 +348,14 @@ func (g *Game) updateGame() error {
     
     // Check win condition
     if g.pelletCount <= 0 {
+        g.RoundNumber++
+        g.State=StateRoundReady
+        g.ShowRoundReady=true
+        g.RoundReadyTimer=0
         g.resetGame()
+        g.SoundManager.PlaySFX("round_complete")
+
+        fmt.Printf("Round %d completed! Advancing to round %d \n",g.RoundNumber-1,g.RoundNumber)
     }
     
     return nil
@@ -295,7 +403,8 @@ func (g *Game) checkPelletCollection() {
         g.powerPelletActive = true
         g.powerPelletTimer = 600 // 10 seconds at 60 FPS
         g.gameState.FrightModeActive=true
-        
+
+        g.SoundManager.PlaySFX("power_pellet")
         // Set all visible ghosts to frightened mode
         for _, ghost := range g.Ghosts {
             if ghost.Visible {
@@ -365,6 +474,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
     case StateGameOver:
         g.drawGame(screen)
         g.drawGameOverOverlay(screen)
+
+    case StateIntro:
+        if g.IntroSystem != nil {
+            g.IntroSystem.Draw(screen)
+        }
+        return
+
+     case StateRoundReady:      // Add round ready drawing
+        g.drawRoundReady(screen)
+        return
     }
 }
 
@@ -681,3 +800,240 @@ func (g *Game) resetGhosts() {
     g.gameState.FrightModeActive = false
     fmt.Println("=== RESET COMPLETE ===")
 }
+
+func (g *Game) drawRoundReady(screen *ebiten.Image) {
+    // Draw the game field first (dimmed)
+    g.drawGame(screen)
+    
+    // Dark overlay
+    ebitenutil.DrawRect(screen, 0, 0, float64(len(level[0])*TileSize), float64(len(level)*TileSize), 
+                       color.RGBA{0, 0, 0, 180})
+    
+    // Pulsing effect
+    // pulse := 0.7 + 0.3*math.Sin(float64(g.RoundReadyTimer)*0.15)
+    
+    // Round number
+    width := len(level[0]) * TileSize
+    height := len(level) * TileSize
+    
+    roundText := fmt.Sprintf("ROUND %d", g.RoundNumber)
+    if bigfont != nil {
+        // Use the existing font system
+        ebitenutil.DebugPrintAt(screen, roundText, width/2-60, height/2-40)
+    } else {
+        ebitenutil.DebugPrintAt(screen, roundText, width/2-60, height/2-40)
+    }
+    
+    // Ready text
+    // readyAlpha := uint8(pulse * 255)
+    readyText := "READY?"
+    ebitenutil.DebugPrintAt(screen, readyText, width/2-30, height/2)
+    
+    // Instructions
+    if g.RoundReadyTimer > 60 {
+        instrText := "PRESS SPACE TO BEGIN"
+        ebitenutil.DebugPrintAt(screen, instrText, width/2-80, height/2+40)
+    }
+    
+    // Cursed energy effects around the text
+    g.drawCursedEnergyEffects(screen, width/2, height/2)
+}
+
+// Add cursed energy visual effects
+func (g *Game) drawCursedEnergyEffects(screen *ebiten.Image, centerX, centerY int) {
+    time := float64(g.RoundReadyTimer)
+    
+    // Draw swirling energy particles
+    for i := 0; i < 12; i++ {
+        angle := float64(i)*math.Pi/6 + time*0.05
+        radius := 80 + 20*math.Sin(time*0.1+float64(i))
+        
+        x := float64(centerX) + radius*math.Cos(angle)
+        y := float64(centerY) + radius*math.Sin(angle)
+        
+        // Energy particle color (purple/red cursed energy)
+        intensity := (math.Sin(time*0.1+float64(i)) + 1) / 2
+        red := uint8(100 + intensity*155)
+        blue := uint8(50 + intensity*100)
+        alpha := uint8(100 + intensity*100)
+        
+        ebitenutil.DrawRect(screen, x-2, y-2, 4, 4, color.RGBA{red, 50, blue, alpha})
+    }
+}
+
+func (g *Game) handleSoundControls() {
+    if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+        g.SoundManager.ToggleBGM()
+    }
+    
+    if inpututil.IsKeyJustPressed(ebiten.KeyN) {
+        g.SoundManager.ToggleSFX()
+    }
+    
+    if inpututil.IsKeyJustPressed(ebiten.KeyEqual) { // Plus key
+        currentVol := g.SoundManager.Volume
+        g.SoundManager.SetVolume(currentVol + 0.1)
+    }
+    
+    if inpututil.IsKeyJustPressed(ebiten.KeyMinus) {
+        currentVol := g.SoundManager.Volume
+        g.SoundManager.SetVolume(currentVol - 0.1)
+    }
+}
+func (g *Game) updateGameEnhanced() error {
+    // Handle pause
+    if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+        g.State = StatePaused
+        g.SoundManager.PlaySFX("pause")
+        return nil
+    }
+
+    // Update player
+    if g.Player != nil {
+        oldScore := g.Player.Score
+        g.Player.Update(level, TileSize)
+        
+        // Check if score changed to play sound
+        if g.Player.Score > oldScore {
+            scoreDiff := g.Player.Score - oldScore
+            if scoreDiff == 10 {
+                g.SoundManager.PlaySFX("pellet_eat")
+            } else if scoreDiff == 50 {
+                g.SoundManager.PlaySFX("power_pellet")
+            } else if scoreDiff >= 200 {
+                g.SoundManager.PlaySFX("ghost_eaten")
+            }
+        }
+    }
+    
+    // Update power pellet timer with sound
+    if g.powerPelletActive {
+        g.powerPelletTimer--
+        
+        // Warning sound when power pellet is about to end
+        if g.powerPelletTimer == 120 { // 2 seconds left
+            g.SoundManager.PlaySFX("power_pellet_warning")
+        }
+        
+        if g.powerPelletTimer <= 0 {
+            g.powerPelletActive = false
+            g.gameState.FrightModeActive = false
+            g.SoundManager.PlaySFX("power_pellet_end")
+            
+            for _, ghost := range g.Ghosts {
+                if ghost.Mode == FrightenedMode {
+                    ghost.ResetMode()
+                }
+            }
+        }
+    }
+    
+    // Update ghosts
+    if g.ghostManager != nil {
+        g.ghostManager.UpdateAll()
+    }
+    
+    for i, ghost := range g.Ghosts {
+        _=i
+        if ghost != nil {
+            ghost.Update(g.gameState)
+        }
+    }
+    
+    // Check for collisions
+    if g.ghostManager != nil {
+        result := g.ghostManager.CheckCollisions(g.Player.X, g.Player.Y)
+        switch result {
+        case "ghost_eaten":
+            g.Player.Score += 200
+            g.SoundManager.PlaySFX("ghost_eaten")
+        case "player_caught":
+            g.lives--
+            g.SoundManager.PlaySFX("player_death")
+            g.resetPlayerPosition()
+            
+            if g.lives <= 0 {
+                g.State = StateGameOver
+                g.SoundManager.PlaySFX("game_over")
+                g.SoundManager.StopBGM()
+                return nil
+            }
+            
+            g.resetGhosts()
+        }
+    }
+    
+    // Check pellet collection
+    g.checkPelletCollection()
+    
+    // Check win condition
+    if g.pelletCount <= 0 {
+        g.RoundNumber++
+        g.State = StateRoundReady
+        g.ShowRoundReady = true
+        g.RoundReadyTimer = 0
+        g.resetGame()
+        g.SoundManager.PlaySFX("round_complete")
+        
+        // Increase difficulty slightly each round
+        if g.RoundNumber > 1 {
+            for _, ghost := range g.Ghosts {
+                ghost.BaseSpeed += 0.1 // Slightly faster each round
+            }
+        }
+    }
+    
+    return nil
+}
+
+// Enhanced UI drawing with sound visualization
+func (g *Game) drawUIEnhanced(screen *ebiten.Image) {
+    // Score with glow effect for high scores
+    scoreColor := color.RGBA{255, 255, 255, 255}
+    if g.Player.Score > 1000 {
+        pulse := math.Sin(float64(g.globalTimer)*0.2) * 0.3 + 0.7
+        scoreColor = color.RGBA{uint8(255 * pulse), uint8(255 * pulse), 100, 255}
+    }
+    
+    scoreText := fmt.Sprintf("Score: %d", g.Player.Score)
+    ebitenutil.DebugPrintAt(screen, scoreText, 10, 10)
+    
+    // Lives with heart symbols (or curse symbols for JJK theme)
+    livesText := fmt.Sprintf("Lives: %d", g.lives)
+    for i := 0; i < g.lives; i++ {
+        // Draw curse symbol or use text
+        ebitenutil.DrawRect(screen, float64(10+i*20), 30, 15, 15, color.RGBA{200, 50, 50, 255})
+    }
+    ebitenutil.DebugPrintAt(screen, livesText, 10, 50)
+    
+    // Power pellet timer with dramatic countdown
+    if g.powerPelletActive {
+        timeLeft := g.powerPelletTimer / 60
+        timerColor := color.RGBA{255, 255, 100, 255}
+_ = scoreColor
+_ = timerColor
+        
+        // Change color as time runs out
+        if timeLeft <= 2 {
+            pulse := math.Sin(float64(g.globalTimer)*0.5) * 0.5 + 0.5
+            timerColor = color.RGBA{uint8(255 * pulse), 50, 50, 255}
+        }
+        
+        powerText := fmt.Sprintf("CURSED POWER: %ds", timeLeft)
+        ebitenutil.DebugPrintAt(screen, powerText, 10, 70)
+    }
+    
+    // Round number
+    roundText := fmt.Sprintf("Round: %d", g.RoundNumber)
+    ebitenutil.DebugPrintAt(screen, roundText, 10, 90)
+    
+    // Pellets remaining
+    pelletsText := fmt.Sprintf("Pellets: %d", g.pelletCount)
+    ebitenutil.DebugPrintAt(screen, pelletsText, 10, 110)
+    
+    // Sound indicator
+    if g.SoundManager.BGMEnabled {
+        ebitenutil.DebugPrintAt(screen, "♪", len(level[0])*TileSize-30, 10)
+    }
+}
+
