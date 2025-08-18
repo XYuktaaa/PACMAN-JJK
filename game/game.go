@@ -125,18 +125,20 @@ func NewGame() *Game {
 
     InitPellets(level, TileSize)
 	g.countPellets()
+
 	fmt.Println("🎵 Starting intro music...")
-	if g.SoundManager!=nil{
-		g.SoundManager.PlayBGM("Intro_theme")
+	if g.AudioSystem!=nil{
+    	g.AudioSystem.PlayIntroMusic()
+
 	}else{
-    	fmt.Println("⚠️  SoundManager is nil")
+    	fmt.Println("⚠️  AudioSystem is nil")
 	}
-	if g.AudioSystem != nil {
-        fmt.Println("🎵 AudioSystem is available, playing intro music")
-	g.AudioSystem.PlayIntroMusic()
-	} else {
-        fmt.Println("⚠️  AudioSystem is nil")
-    }
+	// if g.AudioSystem != nil {
+ //        fmt.Println("🎵 AudioSystem is available, playing intro music")
+	// g.AudioSystem.PlayIntroMusic()
+	// } else {
+ //        fmt.Println("⚠️  AudioSystem is nil")
+ //    }
     return g
 }
 
@@ -177,7 +179,18 @@ func (g *Game) updateIntro() error {
        if g.IntroSystem.IsComplete() {
             fmt.Println("Intro complete, transitioning to menu")
             g.State = StateMenu
-            g.SoundManager.PlayBGM("menu_theme")
+            // if g.AudioSystem!=nil{
+            //     g.AudioSystem.PlayMenuMusic()
+            //     g.AudioSystem.PlaySFX("transition")
+
+            // }
+
+            if g.AudioSystem != nil {
+                fmt.Println("🎵 Stopping intro music, starting menu music")
+                g.AudioSystem.StopBGM()  // Stop intro music first
+                g.AudioSystem.PlayMenuMusic()  // Then play menu music
+                g.AudioSystem.PlaySFX("transition")
+            }
         }
     }
     return nil
@@ -199,9 +212,14 @@ func (g *Game) updateRoundReady() error {
         
       // Start game music
 
-       g.SoundManager.PlayBGM("game_theme")
-        g.SoundManager.PlaySFX("round_start")
-        
+       // g.SoundManager.PlayBGM("game_theme")
+       //  g.SoundManager.PlaySFX("round_start")
+        if g.AudioSystem != nil {
+            g.AudioSystem.StopBGM()//i added this i thing go wrong remove this stops menu music 
+            g.AudioSystem.PlayGameMusic()  // This will play "game_theme"
+            g.AudioSystem.PlaySFX("round_start")
+            g.AudioSystem.PlaySFX("game_start")
+        }
       fmt.Printf("Starting round %d\n", g.RoundNumber)
     }
     
@@ -240,15 +258,25 @@ func (g *Game) updateMenu() error {
                 g.RoundReadyTimer=0
                 g.RoundNumber=1 
                 g.resetGame()
-                g.SoundManager.PlaySFX("menu_selected")
+                 if g.AudioSystem != nil {
+                    g.AudioSystem.PlaySFX("menu_select")
+                }
+                // g.SoundManager.PlaySFX("menu_selected")
             case 1: // SETTINGS (you can implement later)
                 fmt.Println("Settings selected")
+                 if g.AudioSystem != nil {
+                    g.AudioSystem.PlaySFX("menu_select")
+                }
                 // For now, do nothing or show a message
             case 2: // GALLERY (you can implement later)  
                 fmt.Println("Gallery selected")
+                 if g.AudioSystem != nil {
+                    g.AudioSystem.PlaySFX("menu_select")
+                }
                 // For now, do nothing or show a message
             case 3: // EXIT
                 return fmt.Errorf("quit game")
+
             }
         }
     }
@@ -259,6 +287,9 @@ func (g *Game) updateGame() error {
     // Handle pause
     if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
         g.State = StatePaused
+         if g.AudioSystem != nil {
+            g.AudioSystem.PlaySFX("pause")
+        }
         return nil
     }
         // Debug: Print game state occasionally
@@ -291,14 +322,34 @@ func (g *Game) updateGame() error {
     // Update power pellet timer
     if g.powerPelletActive {
         g.powerPelletTimer--
+
+        if g.powerPelletTimer == 120 && g.AudioSystem != nil { // 2 seconds left
+            g.AudioSystem.PlaySFX("power_pellet_warning")
+        }
+        
         if g.powerPelletTimer <= 0 {
             g.powerPelletActive = false
             g.gameState.FrightModeActive = false
-             fmt.Println("Power pellet mode ended") // Debug
+            fmt.Println("Power pellet mode ended")
+            
+
+            if g.AudioSystem != nil {
+                g.AudioSystem.PlaySFX("power_pellet_end")
+				fmt.Print("🎵 Power mode ended, returning to game music")
+				g.AudioSystem.StopBGM()  // Stop power mode music first
+                g.AudioSystem.EndPowerMode()  // This will play "game_theme" again
+            }
+
+        
+        // if g.powerPelletTimer <= 0 {
+        //     g.powerPelletActive = false
+        //     g.gameState.FrightModeActive = false
+        //      fmt.Println("Power pellet mode ended") // Debug
             // Reset all ghosts to normal mode
             for _, ghost := range g.Ghosts {
                 if ghost.Mode == FrightenedMode {
-                ghost.ResetMode()}
+                ghost.ResetMode()
+                }
             }
         }
     }
@@ -324,18 +375,29 @@ func (g *Game) updateGame() error {
         switch result {
         case "ghost_eaten":
             g.Player.Score += 200
-            g.SoundManager.PlaySFX("ghost_eaten")
+            if g.AudioSystem != nil {
+                g.AudioSystem.PlaySFX("ghost_eaten")
+            }
+
+            // g.SoundManager.PlaySFX("ghost_eaten")
             // Ghost manager already handles the ghost state change
         case "player_caught":
             g.lives--
-            g.SoundManager.PlaySFX("player_death")
+            if g.AudioSystem != nil {
+                g.AudioSystem.PlaySFX("player_death")
+            }
+            // g.SoundManager.PlaySFX("player_death")
             g.resetPlayerPosition()
             
             
             if g.lives <= 0 {
                 g.State = StateGameOver
-                g.SoundManager.PlaySFX("game_over")
-                g.SoundManager.StopBGM()
+                if g.AudioSystem != nil {
+                    g.AudioSystem.PlaySFX("game_over")
+                    g.AudioSystem.StopBGM()
+                }
+                // g.SoundManager.PlaySFX("game_over")
+                // g.SoundManager.StopBGM()
                 return nil
             }
             
@@ -353,8 +415,12 @@ func (g *Game) updateGame() error {
         g.ShowRoundReady=true
         g.RoundReadyTimer=0
         g.resetGame()
-        g.SoundManager.PlaySFX("round_complete")
+        // g.SoundManager.PlaySFX("round_complete")
+        if g.AudioSystem != nil {
+            g.AudioSystem.PlaySFX("round_complete")
+        }
 
+        
         fmt.Printf("Round %d completed! Advancing to round %d \n",g.RoundNumber-1,g.RoundNumber)
     }
     
@@ -364,6 +430,9 @@ func (g *Game) updateGame() error {
 func (g *Game) updatePaused() error {
     if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
         g.State = StatePlaying
+        if g.AudioSystem != nil {
+            g.AudioSystem.PlaySFX("unpause")
+        }
     }
     return nil
 }
@@ -393,7 +462,9 @@ func (g *Game) checkPelletCollection() {
         level[playerTileY][playerTileX] = TileEmpty
         g.Player.Score += 10
         g.pelletCount--
-        
+         if g.AudioSystem != nil {
+            g.AudioSystem.PlaySFX("pellet_eat")
+        }
     case TilePowerPellet:
         level[playerTileY][playerTileX] = TileEmpty
         g.Player.Score += 50
@@ -404,7 +475,13 @@ func (g *Game) checkPelletCollection() {
         g.powerPelletTimer = 600 // 10 seconds at 60 FPS
         g.gameState.FrightModeActive=true
 
-        g.SoundManager.PlaySFX("power_pellet")
+        // g.SoundManager.PlaySFX("power_pellet")
+         if g.AudioSystem != nil {
+            g.AudioSystem.PlaySFX("power_pellet")
+            fmt.Println("🎵 Starting power mode music")
+            g.AudioSystem.StopBGM()//this will stop current music if sounds weird remove
+            g.AudioSystem.PlayPowerMode()  // This will play "power_mode" BGM
+        }
         // Set all visible ghosts to frightened mode
         for _, ghost := range g.Ghosts {
             if ghost.Visible {
@@ -863,21 +940,37 @@ func (g *Game) drawCursedEnergyEffects(screen *ebiten.Image, centerX, centerY in
 
 func (g *Game) handleSoundControls() {
     if inpututil.IsKeyJustPressed(ebiten.KeyM) {
-        g.SoundManager.ToggleBGM()
+        // g.SoundManager.ToggleBGM()
+         if g.AudioSystem != nil {
+            g.AudioSystem.ToggleBGM()
+        }
     }
     
     if inpututil.IsKeyJustPressed(ebiten.KeyN) {
-        g.SoundManager.ToggleSFX()
+        // g.SoundManager.ToggleSFX()
+         if g.AudioSystem != nil {
+            g.AudioSystem.ToggleSFX()
+        }
     }
     
     if inpututil.IsKeyJustPressed(ebiten.KeyEqual) { // Plus key
-        currentVol := g.SoundManager.Volume
-        g.SoundManager.SetVolume(currentVol + 0.1)
+        // currentVol := g.SoundManager.Volume
+        // g.SoundManager.SetVolume(currentVol + 0.1)
+        if g.AudioSystem != nil {
+            currentVol := g.AudioSystem.BGMVolume
+            g.AudioSystem.SetBGMVolume(currentVol + 0.1)
+            g.AudioSystem.SetSFXVolume(currentVol + 0.1)
+        }
     }
     
     if inpututil.IsKeyJustPressed(ebiten.KeyMinus) {
-        currentVol := g.SoundManager.Volume
-        g.SoundManager.SetVolume(currentVol - 0.1)
+        // currentVol := g.SoundManager.Volume
+        // g.SoundManager.SetVolume(currentVol - 0.1)
+        if g.AudioSystem != nil {
+            currentVol := g.AudioSystem.BGMVolume
+            g.AudioSystem.SetBGMVolume(currentVol - 0.1)
+            g.AudioSystem.SetSFXVolume(currentVol - 0.1)
+        }
     }
 }
 func (g *Game) updateGameEnhanced() error {

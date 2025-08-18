@@ -124,6 +124,7 @@ func (a *AudioSystem) LoadAllAudio() {
     }
     
     fmt.Println("🎵 Loading audio assets...")
+     
     
     // Define audio files to load
     bgmFiles := map[string]string{
