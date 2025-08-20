@@ -66,4 +66,7 @@ go run main.go
 ![Main Menu](game/assets/refrence.png)
 
 ### 🎮 Gameplay  
-![Gameplay](screenshots/gameplay.png)
+![Gameplay](game/assets/2025-08-21T01:53:49+05:30.png)
+![Gameplay](game/assets/2025-08-21T01:53:59+05:30.png)
+![Gameplay](game/assets/2025-08-21T01:54:20+05:30.png)
+![Gameplay](game/assets/2025-08-21T02:11:30+05:30.png)
