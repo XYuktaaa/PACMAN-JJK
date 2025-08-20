@@ -1,7 +1,7 @@
 
-# 🌀 Jujutsu Kaisen: PAC-MAN Edition
+# 🌀 Jujutsu Kaisen Edition: PAC-MAN 
 
-A custom **Pac-Man-style arcade game** built in **Go** using the **Ebiten game engine**, featuring characters and theming inspired by **Jujutsu Kaisen**. Navigate Gojo through cursed mazes, collect pellets, and avoid powerful curses like Sukuna, Jogo, Kenjaku, and Mahito.
+A custom **Pac-Man-style arcade game** built in **Go** using the **Ebiten game engine**, featuring characters and theming inspired by **Jujutsu Kaisen**. Navigate Gojo through cursed mazes, collect pellets, and avoid powerful curses like Sukuna, Jogo, Kenjaku, and Mahito.(work under progress)
 
 ---
 
@@ -10,7 +10,7 @@ A custom **Pac-Man-style arcade game** built in **Go** using the **Ebiten game e
 - 🧠 **Ghost AI** that chases the player using pathfinding
 - 🌌 **Custom sprites** from the JJK universe
 - 🍒 **Pellet and power-pellet system**
-- 🟣 **Animated GIF support** for characters
+- 🟣 **Fright mode** for ghosts. 
 - 🧱 **Dynamic maze** with tiles and walls
 - 🎵 **UI Menu** with animated background and options
 - 💥 **Score tracking and lives system**
@@ -47,17 +47,27 @@ A custom **Pac-Man-style arcade game** built in **Go** using the **Ebiten game e
 - Ebiten library installed:
 ```bash
 go get github.com/hajimehoshi/ebiten/v2
-go run main.go
+./run-game.sh # for linux
 ```
 ```bash
 ###folder structure
-├── assets/              # Sprites, GIFs, backgrounds, font files
+├── assets/              # Sprites, GIFs, backgrounds, font
+├── audio/               # audios for game
+files
 ├── game.go              # Core game logic
 ├── main.go              # Game entry point
 ├── player.go            # Player movement and collision
 ├── ghost.go             # Ghost AI and pathfinding
 ├── menu.go              # UI menu with options
 ├── assets.go            # Asset loader (image & GIF)
+├── ghostAI.go
+├── intro.go
+├── pellet.go
+├── menu.go
+├── cherry.go
+├── audio.go
+├── game
+├── run-game.sh
 ├── README.md            # This file
 ```
 ## 📸 Screenshots
