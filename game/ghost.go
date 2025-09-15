@@ -6,9 +6,9 @@ import (
 	"time"
 	"github.com/hajimehoshi/ebiten/v2"
 
-"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+// "github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"fmt"
-	"image/color"
+	// "image/color"
 )
 
 
@@ -214,16 +214,19 @@ func NewGhost(x, y float64, imagePath, ghostType string, size int) *Ghost {
 		ghost.ChaseTimer=1200
 	case "sakuna"://Pinky
 		ghost.ScatterTarget = [2]int{2, 0}     // Top-left
-		//ghost.Mode=ChaseMode
-		ghost.ReleaseTimer = 300
+		ghost.Mode=ChaseMode
+		ghost.ReleaseTimer = 0
+		ghost.ChaseTimer=1200
 	case "kenjaku"://Inky
 		ghost.ScatterTarget = [2]int{25, 30}// Bottom-right
-		//ghost.Mode=ChaseMode
-		ghost.ReleaseTimer = 600
+		ghost.Mode=ChaseMode
+		ghost.ReleaseTimer = 0
+		ghost.ChaseTimer=1200
 	case "mahito"://clyde
 		ghost.ScatterTarget = [2]int{2, 30}    // Bottom-left
-		ghost.ReleaseTimer = 900
-		//ghost.Mode=ChaseMode
+		ghost.ReleaseTimer = 0
+		ghost.Mode=ChaseMode
+		ghost.ChaseTimer=1200
 	}
 	fmt.Printf("Created ghost %s at (%.1f, %.1f) with speed %.2f\n", 
 		ghostType, x, y, ghost.Speed)
@@ -705,38 +708,39 @@ func (g *Ghost) updateChaseTarget(gameState *GameStateStruct) {
 	}
 }
 
-// Frightened mode target - random movement with bias away from Pacman
 func (g *Ghost) updateFrightenedTarget(gameState *GameStateStruct) {
-	currentTileX := int(g.X / TileSize)
-	currentTileY := int(g.Y / TileSize)
-	
-	// Get valid directions
-	validTargets := make([]Node, 0)
-	directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
-	
-	for _, dir := range directions {
-		newX := currentTileX + dir[0]
-		newY := currentTileY + dir[1]
-		
-		// Use the tile-based validation function
-		if g.isValidTilePosition(gameState, newX, newY) {
-			// Bias away from Pacman
-			pacmanDistance := math.Sqrt(math.Pow(float64(newX)-gameState.PacmanX/TileSize, 2) + 
-				math.Pow(float64(newY)-gameState.PacmanY/TileSize, 2))
-			
-			// Add multiple entries for positions further from Pacman
-			weight := int(pacmanDistance) + 1
-			for i := 0; i < weight; i++ {
-				validTargets = append(validTargets, Node{X: newX, Y: newY})
-			}
-		}
-	}
-	
-	if len(validTargets) > 0 {
-		target := validTargets[rand.Intn(len(validTargets))]
-		g.TargetX = target.X
-		g.TargetY = target.Y
-	}
+    ghostTileX := int(g.X / TileSize)
+    ghostTileY := int(g.Y / TileSize)
+
+    pacmanTileX := int(gameState.PacmanX / TileSize)
+    pacmanTileY := int(gameState.PacmanY / TileSize)
+
+    bestDist := -1.0
+    bestDir := [2]int{0, 0}
+
+    directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+
+    for _, dir := range directions {
+        newX := ghostTileX + dir[0]
+        newY := ghostTileY + dir[1]
+
+        if g.isValidTilePosition(gameState, newX, newY) {
+            dx := float64(newX - pacmanTileX)
+            dy := float64(newY - pacmanTileY)
+            dist := math.Sqrt(dx*dx + dy*dy)
+
+            if dist > bestDist {
+                bestDist = dist
+                bestDir = dir
+            }
+        }
+    }
+
+    // If no valid moves found, do nothing (ghost will stay).
+    if bestDist > 0 {
+        g.TargetX = ghostTileX + bestDir[0]
+        g.TargetY = ghostTileY + bestDir[1]
+    }
 }
 
 
@@ -964,7 +968,7 @@ func (g *Ghost) followPath(gameState *GameStateStruct) {
 
 // SetFrightened activates frightened mode
 func (g *Ghost) SetFrightened(duration int) {
-	if g.Mode != DeadMode && g.Mode != InHouseMode {
+	if g.Mode != DeadMode {
 		g.Mode = FrightenedMode
 		g.FrightTimer = duration
 		g.Speed = g.BaseSpeed * 0.5
@@ -1098,15 +1102,7 @@ func (g *Ghost) Draw(screen *ebiten.Image) {
     op.GeoM.Translate(g.X, g.Y)
     screen.DrawImage(g.Image, op)
     
-    // Debug: Draw hitbox in frightened mode
-    if g.Mode == FrightenedMode {
-        // Draw a blue rectangle outline to show hitbox
-        ebitenutil.DrawRect(screen, g.X, g.Y, float64(g.Size), 2, color.RGBA{0, 0, 255, 128}) // Top
-        ebitenutil.DrawRect(screen, g.X, g.Y, 2, float64(g.Size), color.RGBA{0, 0, 255, 128}) // Left  
-        ebitenutil.DrawRect(screen, g.X+float64(g.Size)-2, g.Y, 2, float64(g.Size), color.RGBA{0, 0, 255, 128}) // Right
-        ebitenutil.DrawRect(screen, g.X, g.Y+float64(g.Size)-2, float64(g.Size), 2, color.RGBA{0, 0, 255, 128}) // Bottom
     }
-}
 
 func (g *Ghost) debugSurroundingTiles(gameState *GameStateStruct) {
     currentTileX := int(g.X / TileSize)

@@ -3,6 +3,7 @@ package main
 import (
     "github.com/hajimehoshi/ebiten/v2"
     "github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    // "github.com/hajimehoshi/ebiten/v2/audio"
     "fmt"
     "image/color"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -64,6 +65,8 @@ type Game struct{
     RoundNumber  int
     ShowRoundReady bool
     AudioSystem *AudioSystem
+    // ui   *UIPage//added this
+    // audioContext *audio.Context //added this
 
 }
 
@@ -81,10 +84,10 @@ func NewGame() *Game {
     AudioSystem:= NewAudioSystem()
     
     if AudioSystem != nil {
-        fmt.Println("🎵 Initializing audio system...")
+        fmt.Println("ðŸŽµ Initializing audio system...")
         AudioSystem.LoadAllAudio()
     } else {
-        fmt.Println("❌ Failed to initialize audio system")
+        fmt.Println("âŒ Failed to initialize audio system")
     }
 
     g := &Game{
@@ -102,6 +105,8 @@ func NewGame() *Game {
         RoundNumber: 1,
         ShowRoundReady: false,
         AudioSystem: AudioSystem,
+        // audioContext: audioContext,//added this
+        // ui: NewUIPage(audioContext),//added this
     }
 
     g.ghostManager = NewGhostManager(gameState) 
@@ -126,18 +131,18 @@ func NewGame() *Game {
     InitPellets(level, TileSize)
 	g.countPellets()
 
-	fmt.Println("🎵 Starting intro music...")
+	fmt.Println("ðŸŽµ Starting intro music...")
 	if g.AudioSystem!=nil{
     	g.AudioSystem.PlayIntroMusic()
 
 	}else{
-    	fmt.Println("⚠️  AudioSystem is nil")
+    	fmt.Println("âš ï¸  AudioSystem is nil")
 	}
 	// if g.AudioSystem != nil {
- //        fmt.Println("🎵 AudioSystem is available, playing intro music")
+ //        fmt.Println("ðŸŽµ AudioSystem is available, playing intro music")
 	// g.AudioSystem.PlayIntroMusic()
 	// } else {
- //        fmt.Println("⚠️  AudioSystem is nil")
+ //        fmt.Println("âš ï¸  AudioSystem is nil")
  //    }
     return g
 }
@@ -186,7 +191,7 @@ func (g *Game) updateIntro() error {
             // }
 
             if g.AudioSystem != nil {
-                fmt.Println("🎵 Stopping intro music, starting menu music")
+                fmt.Println("ðŸŽµ Stopping intro music, starting menu music")
                 g.AudioSystem.StopBGM()  // Stop intro music first
                 g.AudioSystem.PlayMenuMusic()  // Then play menu music
                 g.AudioSystem.PlaySFX("transition")
@@ -335,7 +340,7 @@ func (g *Game) updateGame() error {
 
             if g.AudioSystem != nil {
                 g.AudioSystem.PlaySFX("power_pellet_end")
-				fmt.Print("🎵 Power mode ended, returning to game music")
+				fmt.Print("ðŸŽµ Power mode ended, returning to game music")
 				g.AudioSystem.StopBGM()  // Stop power mode music first
                 g.AudioSystem.EndPowerMode()  // This will play "game_theme" again
             }
@@ -445,55 +450,144 @@ func (g *Game) updateGameOver() error {
     return nil
 }
 
-func (g *Game) checkPelletCollection() {
-    playerTileX := int(g.Player.X) / TileSize
-    playerTileY := int(g.Player.Y) / TileSize
+// func (g *Game) checkPelletCollection() {
+//     playerTileX := int(g.Player.X) / TileSize
+//     playerTileY := int(g.Player.Y) / TileSize
     
-    // Bounds checking
-    if playerTileY < 0 || playerTileY >= len(level) || 
-       playerTileX < 0 || playerTileX >= len(level[0]) {
-        return
-    }
+//     // Bounds checking
+//     if playerTileY < 0 || playerTileY >= len(level) || 
+//        playerTileX < 0 || playerTileX >= len(level[0]) {
+//         return
+//     }
     
-    currentTile := level[playerTileY][playerTileX]
+//     currentTile := level[playerTileY][playerTileX]
     
-    switch currentTile {
-    case TilePellet:
-        level[playerTileY][playerTileX] = TileEmpty
-        g.Player.Score += 10
-        g.pelletCount--
-         if g.AudioSystem != nil {
-            g.AudioSystem.PlaySFX("pellet_eat")
-        }
-    case TilePowerPellet:
-        level[playerTileY][playerTileX] = TileEmpty
-        g.Player.Score += 50
-        g.pelletCount--
+//     switch currentTile {
+//     case TilePellet:
+//         level[playerTileY][playerTileX] = TileEmpty
+//         g.Player.Score += 10
+//         g.pelletCount--
+//          if g.AudioSystem != nil {
+//             g.AudioSystem.PlaySFX("pellet_eat")
+//         }
+//     case TilePowerPellet:
+//         level[playerTileY][playerTileX] = TileEmpty
+//         g.Player.Score += 50
+//         g.pelletCount--
         
-        // Activate power pellet mode
-        g.powerPelletActive = true
-        g.powerPelletTimer = 600 // 10 seconds at 60 FPS
-        g.gameState.FrightModeActive=true
+//         // Activate power pellet mode
+//         g.powerPelletActive = true
+//         g.powerPelletTimer = 600 // 10 seconds at 60 FPS
+//         g.gameState.FrightModeActive=true
 
-        // g.SoundManager.PlaySFX("power_pellet")
-         if g.AudioSystem != nil {
-            g.AudioSystem.PlaySFX("power_pellet")
-            fmt.Println("🎵 Starting power mode music")
-            g.AudioSystem.StopBGM()//this will stop current music if sounds weird remove
-            g.AudioSystem.PlayPowerMode()  // This will play "power_mode" BGM
-        }
-        // Set all visible ghosts to frightened mode
-        for _, ghost := range g.Ghosts {
-            if ghost.Visible {
-                ghost.SetFrightened(600)
-            }
-        }
-        // Also trigger through ghost manager
-        if g.ghostManager != nil {
-            g.ghostManager.TriggerFrightMode()
-        }
+//         // g.SoundManager.PlaySFX("power_pellet")
+//          if g.AudioSystem != nil {
+//             g.AudioSystem.PlaySFX("power_pellet")
+//             fmt.Println("ðŸŽµ Starting power mode music")
+//             g.AudioSystem.StopBGM()//this will stop current music if sounds weird remove
+//             g.AudioSystem.PlayPowerMode()  // This will play "power_mode" BGM
+//         }
+//         // Set all visible ghosts to frightened mode
+//         for _, ghost := range g.Ghosts {
+//             if ghost.Visible {
+//                 ghost.SetFrightened(600)
+//             }
+//         }
+//         // Also trigger through ghost manager
+//         if g.ghostManager != nil {
+//             g.ghostManager.TriggerFrightMode()
+//         }
 
+//     }
+// }
+
+func (g *Game) checkPelletCollection() {
+    // Store previous counts to detect changes
+    prevScore := g.Player.Score
+    prevPelletCount := g.pelletCount
+    
+    // For a 45-pixel player on 32-pixel tiles, use center-based detection
+    centerX := g.Player.X + float64(g.Player.Size)/2
+    centerY := g.Player.Y + float64(g.Player.Size)/2
+    
+    // Check the main tile based on center position
+    tileX := int(centerX) / TileSize
+    tileY := int(centerY) / TileSize
+    
+    // Also check adjacent tiles that the player might be overlapping
+    checkTiles := [][2]int{
+        {tileX, tileY},     // Center tile
+        {tileX-1, tileY},   // Left tile
+        {tileX+1, tileY},   // Right tile  
+        {tileX, tileY-1},   // Up tile
+        {tileX, tileY+1},   // Down tile
     }
+    
+    for _, tile := range checkTiles {
+        tx, ty := tile[0], tile[1]
+        
+        // Bounds checking
+        if ty < 0 || ty >= len(level) || tx < 0 || tx >= len(level[0]) {
+            continue
+        }
+        
+        currentTile := level[ty][tx]
+        
+        switch currentTile {
+        case TilePellet:
+            level[ty][tx] = TileEmpty
+            g.Player.Score += 10
+            g.pelletCount--
+            
+            // Play pellet eat sound
+            if g.AudioSystem != nil {
+                g.AudioSystem.PlaySFX("pellet_eat")
+            }
+            fmt.Printf("Pellet eaten at (%d,%d)! Score: %d\n", tx, ty, g.Player.Score)
+            return // Only collect one pellet per update
+            
+        case TilePowerPellet:
+            level[ty][tx] = TileEmpty
+            g.Player.Score += 50
+            g.pelletCount--
+            
+            // Activate power pellet mode
+            g.powerPelletActive = true
+            g.powerPelletTimer = 600 // 10 seconds at 60 FPS
+            g.gameState.FrightModeActive = true
+
+            // Play power pellet sound and music
+            if g.AudioSystem != nil {
+                g.AudioSystem.PlaySFX("power_pellet")
+                fmt.Println("ðŸŽµ Starting power mode music")
+                g.AudioSystem.StopBGM()
+                g.AudioSystem.PlayPowerMode()
+            }
+            
+            // Set all visible ghosts to frightened mode
+            for _, ghost := range g.Ghosts {
+                if ghost.Visible {
+                    ghost.SetFrightened(600)
+                }
+            }
+            
+            // Also trigger through ghost manager
+            if g.ghostManager != nil {
+                g.ghostManager.TriggerFrightMode()
+            }
+            
+            fmt.Printf("Power pellet eaten at (%d,%d)! Score: %d\n", tx, ty, g.Player.Score)
+            return // Only collect one pellet per update
+        }
+    }
+    
+    // Debug output for score changes (remove this later if you want)
+    if g.Player.Score != prevScore {
+        fmt.Printf("Score changed from %d to %d, pellets remaining: %d\n", 
+                   prevScore, g.Player.Score, g.pelletCount)
+    }
+    
+    _ = prevPelletCount // Suppress unused variable warning
 }
 
 func (g *Game) resetPlayerPosition() {
@@ -511,7 +605,7 @@ func (g *Game) resetGame() {
         g.Player.Score = 0
         g.resetPlayerPosition()
     } else {
-        log.Println("⚠️ Warning: g.Player is nil during resetGame")
+        log.Println("âš ï¸ Warning: g.Player is nil during resetGame")
     }
     g.lives = 3
     g.resetGhosts()
@@ -1126,7 +1220,6 @@ _ = timerColor
     
     // Sound indicator
     if g.SoundManager.BGMEnabled {
-        ebitenutil.DebugPrintAt(screen, "♪", len(level[0])*TileSize-30, 10)
+        ebitenutil.DebugPrintAt(screen, "â™ª", len(level[0])*TileSize-30, 10)
     }
 }
-
