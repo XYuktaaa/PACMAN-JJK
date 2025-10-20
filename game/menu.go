@@ -603,29 +603,70 @@ func (ui *UIPage) drawTitle(screen *ebiten.Image) {
 	titleX := screenWidth/2 - 280
 	
 	// Title panel with cursed energy border
-	panelWidth := float32(620)
-	panelHeight := float32(110)
-	panelX := float32(titleX - 50)
-	panelY := float32(titleY - 30)
-	
+	panelWidth := float32(820)
+	panelHeight := float32(160)
+	panelX := float32(screenWidth/2) - panelWidth/2
+	panelY := float32(titleY - 50)
 	// Dark panel background
 	panelColor := color.RGBA{20, 15, 40, 220}
 	vector.DrawFilledRect(screen, panelX, panelY, panelWidth, panelHeight, panelColor, false)
 	
-	// Cursed energy borders (multiple layers)
-	borderPulse := 0.8 + 0.2*math.Sin(ui.titlePulse*3)
+	// // Cursed energy borders (multiple layers)
+	// borderPulse := 0.8 + 0.2*math.Sin(ui.titlePulse*3)
 	
-	// Outer purple glow
-	outerColor := color.RGBA{150, 80, 255, uint8(180 * borderPulse)}
-	vector.StrokeRect(screen, panelX-2, panelY-2, panelWidth+4, panelHeight+4, 3, outerColor, false)
+	// // Outer purple glow
+	// outerColor := color.RGBA{150, 80, 255, uint8(180 * borderPulse)}
+	// vector.StrokeRect(screen, panelX-2, panelY-2, panelWidth+4, panelHeight+4, 3, outerColor, false)
 	
-	// Inner blue glow
-	innerColor := color.RGBA{100, 150, 255, uint8(200 * borderPulse)}
-	vector.StrokeRect(screen, panelX+2, panelY+2, panelWidth-4, panelHeight-4, 2, innerColor, false)
+	// // Inner blue glow
+	// innerColor := color.RGBA{100, 150, 255, uint8(200 * borderPulse)}
+	// vector.StrokeRect(screen, panelX+2, panelY+2, panelWidth-4, panelHeight-4, 2, innerColor, false)
+
+// Enhanced cursed energy frame with layered glow
+borderPulse := 0.8 + 0.2*math.Sin(ui.titlePulse*3)
+
+outerGlow := color.RGBA{180, 120, 255, uint8(180 * borderPulse)} // bright purple
+innerGlow := color.RGBA{120, 180, 255, uint8(220 * borderPulse)} // blue accent
+accentColor := color.RGBA{255, 100, 200, uint8(240 * borderPulse)} // pink edge
+
+// Outer neon glow
+for i := 0; i < 4; i++ {
+    alpha := uint8(80 + i*40)
+    colorLayer := color.RGBA{outerGlow.R, outerGlow.G, outerGlow.B, alpha}
+    vector.StrokeRect(screen, panelX-float32(i*2), panelY-float32(i*2), panelWidth+float32(i*4), panelHeight+float32(i*4), 2, colorLayer, false)
+}
+
+// Inner energy border
+vector.StrokeRect(screen, panelX+3, panelY+3, panelWidth-6, panelHeight-6, 2, innerGlow, false)
+
+// Accent corners — stylized like cursed seals
+cornerSize := float32(25)
+for i := 0; i < 4; i++ {
+    pulse := 1.0 + 0.1*math.Sin(ui.titlePulse*4+float64(i))
+    clr := color.RGBA{accentColor.R, accentColor.G, accentColor.B, uint8(200 * pulse)}
+
+    switch i {
+    case 0: // top-left
+        vector.StrokeLine(screen, panelX, panelY, panelX+cornerSize, panelY, 3, clr, false)
+        vector.StrokeLine(screen, panelX, panelY, panelX, panelY+cornerSize, 3, clr, false)
+    case 1: // top-right
+        vector.StrokeLine(screen, panelX+panelWidth, panelY, panelX+panelWidth-cornerSize, panelY, 3, clr, false)
+        vector.StrokeLine(screen, panelX+panelWidth, panelY, panelX+panelWidth, panelY+cornerSize, 3, clr, false)
+    case 2: // bottom-left
+        vector.StrokeLine(screen, panelX, panelY+panelHeight, panelX+cornerSize, panelY+panelHeight, 3, clr, false)
+        vector.StrokeLine(screen, panelX, panelY+panelHeight, panelX, panelY+panelHeight-cornerSize, 3, clr, false)
+    case 3: // bottom-right
+        vector.StrokeLine(screen, panelX+panelWidth, panelY+panelHeight, panelX+panelWidth-cornerSize, panelY+panelHeight, 3, clr, false)
+        vector.StrokeLine(screen, panelX+panelWidth, panelY+panelHeight, panelX+panelWidth, panelY+panelHeight-cornerSize, 3, clr, false)
+    }
+}
+glowColor := color.RGBA{100, 50, 180, 60}
+vector.DrawFilledRect(screen, panelX+6, panelY+6, panelWidth-12, panelHeight-12, glowColor, false)
+
 	
 	// Accent corners (JJK style)
-	cornerSize := float32(15)
-	accentColor := color.RGBA{255, 100, 200, uint8(220 * borderPulse)}
+	cornerSize = float32(15)
+	accentColor = color.RGBA{255, 100, 200, uint8(220 * borderPulse)}
 	
 	// Top-left corner
 	vector.StrokeLine(screen, panelX, panelY, panelX+cornerSize, panelY, 3, accentColor, false)
@@ -731,7 +772,7 @@ func (ui *UIPage) drawSelectedOption(screen *ebiten.Image, option string, x, y, 
 	
 	// Selected text - BIGGER
 	textColor := color.RGBA{255, 255, 255, 255}
-	ui.drawLargeText(screen, option, x, y, textColor, 4.0, ui.menuFont)
+	// ui.drawLargeText(screen, option, x, y, textColor, 4.0, ui.menuFont)
 	
 	// Cursed energy indicators
 	ui.drawCleanSelectionIndicators(screen, selectionX, selectionY, selectionWidth, selectionHeight)
@@ -747,7 +788,7 @@ func (ui *UIPage) drawUnselectedOption(screen *ebiten.Image, option string, x, y
 		210,
 	}
 	// BIGGER unselected text
-	ui.drawLargeText(screen, option, x, y, textColor, 2.5, ui.menuFont)
+	// ui.drawLargeText(screen, option, x, y, textColor, 2.5, ui.menuFont)
 	 ui.drawCenteredText(screen, option, screenWidth/2, y+25, textColor, ui.menuFont)
 }
 
