@@ -1,6 +1,7 @@
 package main
 import (
     "github.com/hajimehoshi/ebiten/v2"
+    "github.com/hajimehoshi/ebiten/v2/ebitenutil"
     
 	// "github.com/hajimehoshi/ebiten/v2/audio" 
     "log"
@@ -15,6 +16,8 @@ func main() {
     
     // Load UI-specific images/gifs for the menu
     logo := loadImage("assets/jogo.png")
+    characterImg, _, _ := ebitenutil.NewImageFromFile("assets/character.png")
+
     
     // Load character GIF frames for menu background
     characterFrames, err := LoadGIF("assets/gojo.gif")
@@ -29,10 +32,14 @@ func main() {
     if bg == nil {
         log.Printf("Warning: Background image not found, using gradient background")
     }
+
+    ui := NewUIPage()
+	ui.LoadCharacter()
+
     
     // Set the images in the UI
     // The GIF will now appear as background in the menu area
-    game.menuUI.SetImages(logo, characterFrames, bg)
+    game.menuUI.SetImages(logo, characterFrames, bg,characterImg)
     
     // Set window properties
     ebiten.SetWindowSize(1200, 800)
