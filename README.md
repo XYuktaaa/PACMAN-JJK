@@ -74,7 +74,7 @@ files
 
 ### 🏁 Main Menu  
 ![Main Menu](game/assets/refrence.png)
-!(game/assets/newmenue.png)
+![Main Menu](game/assets/newMenu.png)
 
 ### 🎮 Gameplay  
 ![Gameplay](game/assets/2025-08-21T01:53:49+05:30.png)
