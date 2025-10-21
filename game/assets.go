@@ -17,7 +17,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	//"io/ioutil"
 )
-//go:embed assets/PressStart2P-Regular.ttf
+//go:embed assets/fonts/PressStart2P-Regular.ttf
 var fontBytes []byte
 
 var (
