@@ -77,6 +77,9 @@ files
 
 ### 🎮 Gameplay  
 ![Gameplay](game/assets/2025-08-21T01:53:49+05:30.png)
+[Gameplay](game/assets/2025-12-25T22:44:17+05:30.png)
+
 ![Gameplay](game/assets/2025-08-21T01:53:59+05:30.png)
 ![Gameplay](game/assets/2025-08-21T01:54:20+05:30.png)
 ![Gameplay](game/assets/2025-08-21T02:11:30+05:30.png)
+
