@@ -905,8 +905,7 @@ func (g *Ghost) updateMode(gameState *GameStateStruct) {
 			g.Mode = ScatterMode
 			g.ScatterTimer = 420 // 7 seconds
 		} else {
-			// Still waiting to be released
-			g.ReleaseTimer--
+			// Still waiting to be released (timer decremented in updateTimers)
 			return
 		}
 	}
